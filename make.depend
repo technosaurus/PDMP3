@@ -1,0 +1,27 @@
+MP3_Bitstream.o: MP3_Bitstream.c MP3_Bitstream.h MP3_Main.h
+MP3_Decoder.o: MP3_Decoder.c MP3_Main.h MP3_Decoder.h MP3_Bitstream.h \
+ MP3_Synth_Table.h debug.h
+MP3_Decoder_opt.o: MP3_Decoder_opt.c MP3_Main.h MP3_Decoder.h \
+ MP3_Bitstream.h MP3_Synth_Table.h debug.h
+MP3_Huffman.o: MP3_Huffman.c MP3_Main.h MP3_Huffman.h \
+ MP3_Huffman_Table.h
+MP3_Huffman_Table.o: MP3_Huffman_Table.c MP3_Huffman_Table.h \
+ MP3_Main.h
+MP3_Huffman_Table_opt.o: MP3_Huffman_Table_opt.c MP3_Huffman_Table.h \
+ MP3_Main.h
+MP3_Huffman_opt.o: MP3_Huffman_opt.c MP3_Main.h MP3_Huffman.h \
+ MP3_Huffman_Table.h
+MP3_Main.o: MP3_Main.c MP3_Main.h MP3_Decoder.h MP3_Bitstream.h \
+ MP3_Huffman.h debug.h
+MP3_Synth_Table.o: MP3_Synth_Table.c MP3_Main.h
+audio.o: audio.c MP3_Main.h
+bcmp.o: bcmp.c
+bcmp2.o: bcmp2.c
+debug.o: debug.c MP3_Main.h
+huff2h.o: huff2h.c
+main.o: main.c MP3_Main.h MP3_Decoder.h MP3_Bitstream.h debug.h
+mcmp.o: mcmp.c
+remlib.o: remlib.c MP3_Main.h remote.h
+remote_control.o: remote_control.c MP3_Main.h MP3_Decoder.h \
+ MP3_Bitstream.h remote.h
+requant_sim.o: requant_sim.c
