@@ -67,7 +67,7 @@ Print_Table (void)
     return;
   }
 
-  printf ("UINT32 g_huffman_table_%d[%d] = {", tabnum, numentries);
+  printf ("uint32_t g_huffman_table_%d[%d] = {", tabnum, numentries);
 
   for (i = 0; i < numentries; i++) {
     if ((i % 5) == 0) {
@@ -90,14 +90,14 @@ Print_Table_2 (void)
   int i;
 
   
-  printf ("UINT32 g_huffman_main [34][3] = {\n");
+  printf ("uint32_t g_huffman_main [34][3] = {\n");
 
   for (i = 0; i < 34; i++) {
     if (h_num[h_ref[i]] == 0) {
-      printf ("\t{ (UINT32) 0                 , %3d, %2d },\t/* Table %2d */\n", 
+      printf ("\t{ (uint32_t) 0                 , %3d, %2d },\t/* Table %2d */\n", 
 	      h_num[h_ref[i]], h_lbits[i], i);
     } else {
-      printf ("\t{ (UINT32) g_huffman_table_%-2d, %3d, %2d },\t/* Table %2d */\n", 
+      printf ("\t{ (uint32_t) g_huffman_table_%-2d, %3d, %2d },\t/* Table %2d */\n", 
 	      h_ref[i], h_num[h_ref[i]], h_lbits[i], i);
     }
   }

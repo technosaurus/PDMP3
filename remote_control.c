@@ -26,9 +26,9 @@
 /* External functions and variables (defined elsewhere, and used here) */
 extern char filename[256];
 extern void MPG_Decode_L3_Init_Song (void);
-extern UINT32 MPG_Get_Filepos (void);
-extern void MPG_Set_Filepos (UINT32 position);
-extern UINT32 MPG_Get_Filesize (void);
+extern uint32_t MPG_Get_Filepos (void);
+extern void MPG_Set_Filepos (uint32_t position);
+extern uint32_t MPG_Get_Filesize (void);
 
 /* Global functions and variables (defined here, and used here & elsewhere) */
 int g_mode_pause = 0;
@@ -188,7 +188,7 @@ remote_rew (float arg)
 static void
 remote_setpos (float arg)
 {
-  UINT32 filepos;
+  uint32_t filepos;
 
 
   filepos = ((float) MPG_Get_Filesize ()) * arg;

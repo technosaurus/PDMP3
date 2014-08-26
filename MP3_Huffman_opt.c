@@ -16,18 +16,18 @@
 #include "MP3_Huffman_Table.h"
 
 /* External functions and variables (defined elsewhere, and used here) */
-extern UINT32 MPG_Get_Main_Bits (UINT32 number_of_bits);
-extern STATUS MPG_Set_Main_Pos (UINT32 bit_pos);
-extern UINT32 MPG_Get_Main_Pos (void);
+extern uint32_t MPG_Get_Main_Bits (uint32_t number_of_bits);
+extern STATUS MPG_Set_Main_Pos (uint32_t bit_pos);
+extern uint32_t MPG_Get_Main_Pos (void);
 
 extern t_sf_band_indices g_sf_band_indices[3];
 
 /* Global functions and variables (defined here, and used here & elsewhere) */
-void MPG_Read_Huffman (UINT32 part_2_start, UINT32 gr, UINT32 ch);
+void MPG_Read_Huffman (uint32_t part_2_start, uint32_t gr, uint32_t ch);
 
 /* Local functions and variables (defined here, used here) */
-static STATUS MPG_Huffman_Decode (UINT32 table_num, INT32 *x, INT32 *y, 
-				  INT32 *v, INT32 *w);
+static STATUS MPG_Huffman_Decode (uint32_t table_num, int32_t *x, int32_t *y, 
+				  int32_t *v, int32_t *w);
 
 /******************************************************************************
 *
@@ -40,11 +40,11 @@ static STATUS MPG_Huffman_Decode (UINT32 table_num, INT32 *x, INT32 *y,
 *
 ******************************************************************************/
 void 
-MPG_Read_Huffman (UINT32 part_2_start, UINT32 gr, UINT32 ch)
+MPG_Read_Huffman (uint32_t part_2_start, uint32_t gr, uint32_t ch)
 {
-  INT32 x, y, v, w;
-  UINT32 table_num, is_pos, bit_pos_end, sfreq;
-  UINT32 region_1_start, region_2_start; /* region_0_start = 0 */
+  int32_t x, y, v, w;
+  uint32_t table_num, is_pos, bit_pos_end, sfreq;
+  uint32_t region_1_start, region_2_start; /* region_0_start = 0 */
   
 
   /* Check that there is any data to decode. If not, zero the array. */
@@ -150,10 +150,10 @@ MPG_Read_Huffman (UINT32 part_2_start, UINT32 gr, UINT32 ch)
 *
 ******************************************************************************/
 static STATUS
-MPG_Huffman_Decode (UINT32 table_num, INT32 *x, INT32 *y, INT32 *v, INT32 *w)
+MPG_Huffman_Decode (uint32_t table_num, int32_t *x, int32_t *y, int32_t *v, int32_t *w)
 {
-  UINT32 point, treelen, error, linbits, bits, size, currpos;
-  UINT16 *htptr;
+  uint32_t point, treelen, error, linbits, bits, size, currpos;
+  uint16_t *htptr;
 
   
   /* Table entries are 16 bits each:
@@ -166,16 +166,17 @@ MPG_Huffman_Decode (UINT32 table_num, INT32 *x, INT32 *y, INT32 *v, INT32 *w)
   
   point = 0;
   error = 1;
+
+  treelen = g_huffman_main[table_num].treelen;
   
   /* Check for empty tables */
-  if (g_huffman_main[table_num][1 /* treelen */] == 0) {
+  if (treelen == 0) {
     *x = *y = *v = *w = 0;
     return (OK);
   }
 
-  treelen = g_huffman_main[table_num][1 /* treelen */];
-  linbits = g_huffman_main[table_num][2 /* linbits */];
-  htptr = (UINT16 *) g_huffman_main[table_num][0];
+  linbits = g_huffman_main[table_num].linbits;
+  htptr = g_huffman_main[table_num].hufftable;
 
   size = 4;
   

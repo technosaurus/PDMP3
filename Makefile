@@ -12,8 +12,12 @@ CC = gcc
 # OUTPUT_DBG      Write clear-text debug dumps to stdout
 
 #CFLAGS = -g -O4 -funroll-loops -Wall -ansi -DOUTPUT_SOUND
-CFLAGS = -O4 -funroll-loops -Wall -ansi -DOUTPUT_RAW 
+#CFLAGS = -O4 -funroll-loops -Wall -ansi -DOUTPUT_RAW 
 #CFLAGS = -O4 -funroll-loops -Wall -ansi -DOUTPUT_DBG
+CFLAGS = -O4 -ffunction-sections -fdata-sections -finline-small-functions \
+	-fno-unwind-tables -fno-asynchronous-unwind-tables -frounding-math \
+	-ffast-math -fomit-frame-pointer -DOUTPUT_SOUND
+LDFLAGS = -Wl,--gc-sections,--sort-common,--as-needed,-s
 
 OBJS = MP3_Bitstream.o MP3_Decoder.o MP3_Huffman.o MP3_Huffman_Table.o \
 	MP3_Main.o MP3_Synth_Table.o main.o remote_control.o audio.o debug.o
@@ -34,13 +38,13 @@ bcmp: bcmp.c
 	$(CC) $(CFLAGS) -o bcmp bcmp.c -lm
 
 mp3decode: $(OBJS)
-	$(CC) $(CFLAGS) -o mp3decode  $(OBJS) -lm
+	$(CC) $(CFLAGS) -o mp3decode  $(OBJS) $(LDFLAGS) -lm
 	@echo
 	@echo "********** Made mp3decode **********"
 	@echo
 
 mp3dec_opt: $(OPT_OBJS)
-	$(CC) $(CFLAGS) -o mp3dec_opt  $(OPT_OBJS) -lm
+	$(CC) $(CFLAGS) -o mp3dec_opt  $(OPT_OBJS) $(LDFLAGS) -lm
 	@echo
 	@echo "********** Made mp3dec_opt **********"
 	@echo

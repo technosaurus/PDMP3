@@ -18,9 +18,9 @@
 
 
 /* Global functions and variables (defined here, and used here & elsewhere) */
-UINT32 MPG_Get_Byte (void);
-STATUS MPG_Get_Bytes (UINT32 no_of_bytes, UINT32 data_vec[]);
-UINT32 MPG_Get_Filepos (void);
+uint32_t MPG_Get_Byte (void);
+STATUS MPG_Get_Bytes (uint32_t no_of_bytes, uint32_t data_vec[]);
+uint32_t MPG_Get_Filepos (void);
 
 /* Local functions and variables (defined here, used here) */
 

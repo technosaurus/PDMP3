@@ -15,11 +15,11 @@
 extern char filename[];
 
 /* Global functions and variables (defined here, and used here & elsewhere) */
-UINT32 MPG_Get_Byte (void);
-STATUS MPG_Get_Bytes (UINT32 no_of_bytes, UINT32 data_vec[]);
-UINT32 MPG_Get_Filepos (void);
-void MPG_Set_Filepos (UINT32 position);
-UINT32 MPG_Get_Filesize (void);
+uint32_t MPG_Get_Byte (void);
+STATUS MPG_Get_Bytes (uint32_t no_of_bytes, uint32_t data_vec[]);
+uint32_t MPG_Get_Filepos (void);
+void MPG_Set_Filepos (uint32_t position);
+uint32_t MPG_Get_Filesize (void);
 
 /* Local functions and variables (defined here, used here) */
 static FILE *fp = (FILE *) NULL;
@@ -36,10 +36,10 @@ static FILE *fp = (FILE *) NULL;
 * Return value: The next byte in bitstream in the lowest 8 bits, or C_MPG_EOF.
 *
 ******************************************************************************/
-UINT32
+uint32_t
 MPG_Get_Byte (void)
 {
-  UINT32 val;
+  uint32_t val;
 
 
   /* File open? */
@@ -74,10 +74,10 @@ MPG_Get_Byte (void)
 *
 ******************************************************************************/
 STATUS
-MPG_Get_Bytes (UINT32 no_of_bytes, UINT32 data_vec[])
+MPG_Get_Bytes (uint32_t no_of_bytes, uint32_t data_vec[])
 {
   int i;
-  UINT32 val;
+  uint32_t val;
 
 
   for (i = 0; i < no_of_bytes; i++) {
@@ -104,7 +104,7 @@ MPG_Get_Bytes (UINT32 no_of_bytes, UINT32 data_vec[])
 * Return value: File pos in bytes, or 0 if no file open.
 *
 ******************************************************************************/
-UINT32
+uint32_t
 MPG_Get_Filepos (void)
 {
 
@@ -116,7 +116,7 @@ MPG_Get_Filepos (void)
   if (feof (fp)) {
     return (C_MPG_EOF);
   } else {
-    return ((UINT32) ftell (fp));
+    return ((uint32_t) ftell (fp));
   }
 
 }
@@ -132,7 +132,7 @@ MPG_Get_Filepos (void)
 *
 ******************************************************************************/
 void
-MPG_Set_Filepos (UINT32 position)
+MPG_Set_Filepos (uint32_t position)
 {
 
   /* File open? */
@@ -154,10 +154,10 @@ MPG_Set_Filepos (UINT32 position)
 * Return value: File size in bytes, or 0 if no file open.
 *
 ******************************************************************************/
-UINT32
+uint32_t
 MPG_Get_Filesize (void)
 {
-  UINT32 curr_pos, size;
+  uint32_t curr_pos, size;
 
 
   /* File open? */

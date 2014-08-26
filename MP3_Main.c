@@ -18,18 +18,18 @@
 /**** External functions and variables (defined elsewhere, and used here) ****/
 
 /** Global functions and variables (defined here, and used here & elsewhere) */
-UINT32 MPG_Get_Side_Bits (UINT32 number_of_bits);
-UINT32 MPG_Get_Main_Bits (UINT32 number_of_bits);
-UINT32 MPG_Get_Main_Bit (void);
-STATUS MPG_Set_Main_Pos (UINT32 bit_pos);
-UINT32 MPG_Get_Main_Pos (void);
+uint32_t MPG_Get_Side_Bits (uint32_t number_of_bits);
+uint32_t MPG_Get_Main_Bits (uint32_t number_of_bits);
+uint32_t MPG_Get_Main_Bit (void);
+STATUS MPG_Set_Main_Pos (uint32_t bit_pos);
+uint32_t MPG_Get_Main_Pos (void);
 
 /* 
  * Bitrate table for all three layers.  
  *
  * Index 0 means free bitrate which is 0 > bitrate >= TBD bit/s 
  */
-UINT32 g_mpeg1_bitrates[3 /* layer 1-3 */][15 /* header bitrate_index */] = {
+uint32_t g_mpeg1_bitrates[3 /* layer 1-3 */][15 /* header bitrate_index */] = {
   {   /* Layer 1 */
          0,  32000,  64000,  96000, 128000, 160000, 192000, 224000, 
     256000, 288000, 320000, 352000, 384000, 416000, 448000 
@@ -47,7 +47,7 @@ UINT32 g_mpeg1_bitrates[3 /* layer 1-3 */][15 /* header bitrate_index */] = {
 };
 
 /* Sampling frequencies in hertz (valid for all layers) */
-UINT32 g_sampling_frequency[3] = { 
+uint32_t g_sampling_frequency[3] = { 
   44100 * Hz, 
   48000 * Hz, 
   32000 * Hz
@@ -84,22 +84,22 @@ t_mpeg1_side_info g_side_info;	/* < 100 words */
 t_mpeg1_main_data g_main_data;	/* Large static data (~2500 words) */
 
 /********** Local functions and variables (defined here, used here) **********/
-static STATUS MPG_Get_Main_Data (UINT32 main_data_size, 
-				 UINT32 main_data_begin);
-static void MPG_Get_Sideinfo (UINT32 sideinfo_size);
+static STATUS MPG_Get_Main_Data (uint32_t main_data_size, 
+				 uint32_t main_data_begin);
+static void MPG_Get_Sideinfo (uint32_t sideinfo_size);
 
 /* Bit reservoir for main data */
-UINT32  g_main_data_vec[2*1024]; /* Large static data */
-UINT32 *g_main_data_ptr;	/* Pointer into the reservoir */
-UINT32  g_main_data_idx;	/* Index into the current byte (0-7) */
-UINT32  g_main_data_top = 0;/* Number of bytes in reservoir (0-1024) */
+uint32_t  g_main_data_vec[2*1024]; /* Large static data */
+uint32_t *g_main_data_ptr;	/* Pointer into the reservoir */
+uint32_t  g_main_data_idx;	/* Index into the current byte (0-7) */
+uint32_t  g_main_data_top = 0;/* Number of bytes in reservoir (0-1024) */
 
 /* Bit reservoir for side info */
-static UINT32  side_info_vec[32+4]; 
-static UINT32 *side_info_ptr;	/* Pointer into the reservoir */
-static UINT32  side_info_idx;	/* Index into the current byte (0-7) */
+static uint32_t  side_info_vec[32+4]; 
+static uint32_t *side_info_ptr;	/* Pointer into the reservoir */
+static uint32_t  side_info_idx;	/* Index into the current byte (0-7) */
 
-static UINT32 mpeg1_scalefac_sizes[16][2 /* slen1, slen2 */] = {
+static uint32_t mpeg1_scalefac_sizes[16][2 /* slen1, slen2 */] = {
   { 0, 0 }, { 0, 1 }, { 0, 2 }, { 0, 3 },
   { 3, 0 }, { 1, 1 }, { 1, 2 }, { 1, 3 },
   { 2, 1 }, { 2, 2 }, { 2, 3 }, { 3, 1 },
@@ -121,7 +121,7 @@ static UINT32 mpeg1_scalefac_sizes[16][2 /* slen1, slen2 */] = {
 STATUS
 MPG_Read_Frame (void)
 {
-  UINT32 first = 0;
+  uint32_t first = 0;
 
 
   if (MPG_Get_Filepos () == 0) {
@@ -208,7 +208,7 @@ MPG_Read_Frame (void)
 STATUS
 MPG_Read_Header (void) 
 {
-  UINT32 b1, b2, b3, b4, header;
+  uint32_t b1, b2, b3, b4, header;
 
 
   /* Get the next four bytes from the bitstream */
@@ -336,7 +336,7 @@ MPG_Read_Header (void)
 STATUS
 MPG_Read_CRC (void)
 {
-  UINT32 b1, b2;
+  uint32_t b1, b2;
 
   /* Get the next two bytes from the bitstream */
   b1 = MPG_Get_Byte ();
@@ -367,8 +367,8 @@ MPG_Read_CRC (void)
 STATUS
 MPG_Read_Audio_L3 (void)
 {
-  UINT32 framesize, sideinfo_size, main_data_size;
-  UINT32 nch, ch, gr, scfsi_band, region, window;
+  uint32_t framesize, sideinfo_size, main_data_size;
+  uint32_t nch, ch, gr, scfsi_band, region, window;
   
 
   /* Number of channels (1 for mono and 2 for stereo) */
@@ -488,8 +488,8 @@ MPG_Read_Audio_L3 (void)
 STATUS 
 MPG_Read_Main_L3 (void)
 {
-  UINT32 framesize, sideinfo_size, main_data_size;
-  UINT32 gr, ch, nch, sfb, win, slen1, slen2, nbits, part_2_start;
+  uint32_t framesize, sideinfo_size, main_data_size;
+  uint32_t gr, ch, nch, sfb, win, slen1, slen2, nbits, part_2_start;
 
 
   /* Number of channels (1 for mono and 2 for stereo) */
@@ -646,10 +646,10 @@ MPG_Read_Main_L3 (void)
 * Return value: The bits are returned in the LSB of the return value.
 *
 ******************************************************************************/
-UINT32 
-MPG_Get_Side_Bits (UINT32 number_of_bits)
+uint32_t 
+MPG_Get_Side_Bits (uint32_t number_of_bits)
 {
-  UINT32 tmp;
+  uint32_t tmp;
 
   
   /* Form a word of the next four bytes */
@@ -680,10 +680,10 @@ MPG_Get_Side_Bits (UINT32 number_of_bits)
 * Return value: The bits are returned in the LSB of the return value.
 *
 ******************************************************************************/
-UINT32 
-MPG_Get_Main_Bits (UINT32 number_of_bits)
+uint32_t 
+MPG_Get_Main_Bits (uint32_t number_of_bits)
 {
-  UINT32 tmp;
+  uint32_t tmp;
 
   
   if (number_of_bits == 0) return (0);
@@ -718,10 +718,10 @@ MPG_Get_Main_Bits (UINT32 number_of_bits)
 * Return value: The bit is returned in the LSB of the return value.
 *
 ******************************************************************************/
-UINT32 
+uint32_t 
 MPG_Get_Main_Bit (void)
 {
-  UINT32 tmp;
+  uint32_t tmp;
 
 
   tmp = g_main_data_ptr[0] >> (7 - g_main_data_idx);
@@ -748,7 +748,7 @@ MPG_Get_Main_Bit (void)
 *
 ******************************************************************************/
 STATUS 
-MPG_Set_Main_Pos (UINT32 bit_pos)
+MPG_Set_Main_Pos (uint32_t bit_pos)
 {
 
   g_main_data_ptr = &(g_main_data_vec[bit_pos >> 3]);
@@ -769,17 +769,17 @@ MPG_Set_Main_Pos (UINT32 bit_pos)
 * Return value: Bit position.
 *
 ******************************************************************************/
-UINT32 
+uint32_t 
 MPG_Get_Main_Pos (void)
 {
-  UINT32 pos;
+  uint32_t pos;
 
   
-  pos = ((UINT32) g_main_data_ptr) - ((UINT32) &(g_main_data_vec[0]));
+  pos = ((size_t) g_main_data_ptr) - ((size_t) &(g_main_data_vec[0]));
 
   pos /= 4; /* Divide by four to get number of bytes */
-  pos = pos << 3;		/* Multiply by 8 to get number of bits */
-  pos = pos + g_main_data_idx;	/* Add current bit index */
+  pos *= 8;		/* Multiply by 8 to get number of bits */
+  pos += g_main_data_idx;	/* Add current bit index */
 				    
   return (pos);
 
@@ -797,7 +797,7 @@ MPG_Get_Main_Pos (void)
 *
 ******************************************************************************/
 static void
-MPG_Get_Sideinfo (UINT32 sideinfo_size)
+MPG_Get_Sideinfo (uint32_t sideinfo_size)
 {
   if (MPG_Get_Bytes (sideinfo_size, side_info_vec) != OK) {
     ERR ("\nCouldn't read sideinfo %d bytes at pos %d\n", 
@@ -825,7 +825,7 @@ MPG_Get_Sideinfo (UINT32 sideinfo_size)
 *
 ******************************************************************************/
 static STATUS
-MPG_Get_Main_Data (UINT32 main_data_size, UINT32 main_data_begin)
+MPG_Get_Main_Data (uint32_t main_data_size, uint32_t main_data_begin)
 {
   int i, start_pos;
 

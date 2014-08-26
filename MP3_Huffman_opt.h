@@ -12,6 +12,6 @@
 
 #include "MP3_Main.h"
 
-extern UINT32 g_huffman_main [34][3];
+extern uint32_t g_huffman_main [34][3];
 
 #endif /* _HUFFMAN_TABLES_H_ */

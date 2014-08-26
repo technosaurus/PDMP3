@@ -11,7 +11,11 @@
  */
 
 #include "MP3_Main.h"
-
-extern UINT32 g_huffman_main [34][3];
+typedef struct hufftables{
+	uint32_t * hufftable;
+	uint16_t treelen;
+	uint8_t linbits;
+}hufftables;
+extern hufftables g_huffman_main [34];
 
 #endif /* _HUFFMAN_TABLES_H_ */

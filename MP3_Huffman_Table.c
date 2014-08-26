@@ -1,25 +1,25 @@
 #include "MP3_Huffman_Table.h"
 
-UINT32 g_huffman_table_1[7] = {
+uint32_t g_huffman_table_1[7] = {
 	0x00020001, 0x00000000, 0x00020001, 0x00000010, 0x00020001, 
 	0x00000001, 0x00000011, 
 };
 
-UINT32 g_huffman_table_2[17] = {
+uint32_t g_huffman_table_2[17] = {
 	0x00020001, 0x00000000, 0x00040001, 0x00020001, 0x00000010, 
 	0x00000001, 0x00020001, 0x00000011, 0x00040001, 0x00020001, 
 	0x00000020, 0x00000021, 0x00020001, 0x00000012, 0x00020001, 
 	0x00000002, 0x00000022, 
 };
 
-UINT32 g_huffman_table_3[17] = {
+uint32_t g_huffman_table_3[17] = {
 	0x00040001, 0x00020001, 0x00000000, 0x00000001, 0x00020001, 
 	0x00000011, 0x00020001, 0x00000010, 0x00040001, 0x00020001, 
 	0x00000020, 0x00000021, 0x00020001, 0x00000012, 0x00020001, 
 	0x00000002, 0x00000022, 
 };
 
-UINT32 g_huffman_table_5[31] = {
+uint32_t g_huffman_table_5[31] = {
 	0x00020001, 0x00000000, 0x00040001, 0x00020001, 0x00000010, 
 	0x00000001, 0x00020001, 0x00000011, 0x00080001, 0x00040001, 
 	0x00020001, 0x00000020, 0x00000002, 0x00020001, 0x00000021, 
@@ -29,7 +29,7 @@ UINT32 g_huffman_table_5[31] = {
 	0x00000033, 
 };
 
-UINT32 g_huffman_table_6[31] = {
+uint32_t g_huffman_table_6[31] = {
 	0x00060001, 0x00040001, 0x00020001, 0x00000000, 0x00000010, 
 	0x00000011, 0x00060001, 0x00020001, 0x00000001, 0x00020001, 
 	0x00000020, 0x00000021, 0x00060001, 0x00020001, 0x00000012, 
@@ -39,7 +39,7 @@ UINT32 g_huffman_table_6[31] = {
 	0x00000033, 
 };
 
-UINT32 g_huffman_table_7[71] = {
+uint32_t g_huffman_table_7[71] = {
 	0x00020001, 0x00000000, 0x00040001, 0x00020001, 0x00000010, 
 	0x00000001, 0x00080001, 0x00020001, 0x00000011, 0x00040001, 
 	0x00020001, 0x00000020, 0x00000002, 0x00000021, 0x00120001, 
@@ -57,7 +57,7 @@ UINT32 g_huffman_table_7[71] = {
 	0x00000055, 
 };
 
-UINT32 g_huffman_table_8[71] = {
+uint32_t g_huffman_table_8[71] = {
 	0x00060001, 0x00020001, 0x00000000, 0x00020001, 0x00000010, 
 	0x00000001, 0x00020001, 0x00000011, 0x00040001, 0x00020001, 
 	0x00000021, 0x00000012, 0x000e0001, 0x00040001, 0x00020001, 
@@ -75,7 +75,7 @@ UINT32 g_huffman_table_8[71] = {
 	0x00000055, 
 };
 
-UINT32 g_huffman_table_9[71] = {
+uint32_t g_huffman_table_9[71] = {
 	0x00080001, 0x00040001, 0x00020001, 0x00000000, 0x00000010, 
 	0x00020001, 0x00000001, 0x00000011, 0x000a0001, 0x00040001, 
 	0x00020001, 0x00000020, 0x00000021, 0x00020001, 0x00000012, 
@@ -93,7 +93,7 @@ UINT32 g_huffman_table_9[71] = {
 	0x00000055, 
 };
 
-UINT32 g_huffman_table_10[127] = {
+uint32_t g_huffman_table_10[127] = {
 	0x00020001, 0x00000000, 0x00040001, 0x00020001, 0x00000010, 
 	0x00000001, 0x000a0001, 0x00020001, 0x00000011, 0x00040001, 
 	0x00020001, 0x00000020, 0x00000002, 0x00020001, 0x00000021, 
@@ -122,7 +122,7 @@ UINT32 g_huffman_table_10[127] = {
 	0x00000067, 0x00000077, 
 };
 
-UINT32 g_huffman_table_11[127] = {
+uint32_t g_huffman_table_11[127] = {
 	0x00060001, 0x00020001, 0x00000000, 0x00020001, 0x00000010, 
 	0x00000001, 0x00080001, 0x00020001, 0x00000011, 0x00040001, 
 	0x00020001, 0x00000020, 0x00000002, 0x00000012, 0x00180001, 
@@ -151,7 +151,7 @@ UINT32 g_huffman_table_11[127] = {
 	0x00000067, 0x00000077, 
 };
 
-UINT32 g_huffman_table_12[127] = {
+uint32_t g_huffman_table_12[127] = {
 	0x000c0001, 0x00040001, 0x00020001, 0x00000010, 0x00000001, 
 	0x00020001, 0x00000011, 0x00020001, 0x00000000, 0x00020001, 
 	0x00000020, 0x00000002, 0x00100001, 0x00040001, 0x00020001, 
@@ -180,7 +180,7 @@ UINT32 g_huffman_table_12[127] = {
 	0x00000067, 0x00000077, 
 };
 
-UINT32 g_huffman_table_13[511] = {
+uint32_t g_huffman_table_13[511] = {
 	0x00020001, 0x00000000, 0x00060001, 0x00020001, 0x00000010, 
 	0x00020001, 0x00000001, 0x00000011, 0x001c0001, 0x00080001, 
 	0x00040001, 0x00020001, 0x00000020, 0x00000002, 0x00020001, 
@@ -286,7 +286,7 @@ UINT32 g_huffman_table_13[511] = {
 	0x000000fe, 
 };
 
-UINT32 g_huffman_table_15[511] = {
+uint32_t g_huffman_table_15[511] = {
 	0x00100001, 0x00060001, 0x00020001, 0x00000000, 0x00020001, 
 	0x00000010, 0x00000001, 0x00020001, 0x00000011, 0x00040001, 
 	0x00020001, 0x00000020, 0x00000002, 0x00020001, 0x00000021, 
@@ -392,7 +392,7 @@ UINT32 g_huffman_table_15[511] = {
 	0x000000ff, 
 };
 
-UINT32 g_huffman_table_16[511] = {
+uint32_t g_huffman_table_16[511] = {
 	0x00020001, 0x00000000, 0x00060001, 0x00020001, 0x00000010, 
 	0x00020001, 0x00000001, 0x00000011, 0x002a0001, 0x00080001, 
 	0x00040001, 0x00020001, 0x00000020, 0x00000002, 0x00020001, 
@@ -498,7 +498,7 @@ UINT32 g_huffman_table_16[511] = {
 	0x000000ef, 
 };
 
-UINT32 g_huffman_table_24[512] = {
+uint32_t g_huffman_table_24[512] = {
 	0x003c0001, 0x00080001, 0x00040001, 0x00020001, 0x00000000, 
 	0x00000010, 0x00020001, 0x00000001, 0x00000011, 0x000e0001, 
 	0x00060001, 0x00040001, 0x00020001, 0x00000020, 0x00000002, 
@@ -604,7 +604,7 @@ UINT32 g_huffman_table_24[512] = {
 	0x000000fe, 0x000000ef, 
 };
 
-UINT32 g_huffman_table_32[31] = {
+uint32_t g_huffman_table_32[31] = {
 	0x00020001, 0x00000000, 0x00080001, 0x00040001, 0x00020001, 
 	0x00000008, 0x00000004, 0x00020001, 0x00000001, 0x00000002, 
 	0x00080001, 0x00040001, 0x00020001, 0x0000000c, 0x0000000a, 
@@ -614,7 +614,7 @@ UINT32 g_huffman_table_32[31] = {
 	0x0000000b, 
 };
 
-UINT32 g_huffman_table_33[31] = {
+uint32_t g_huffman_table_33[31] = {
 	0x00100001, 0x00080001, 0x00040001, 0x00020001, 0x00000000, 
 	0x00000001, 0x00020001, 0x00000002, 0x00000003, 0x00040001, 
 	0x00020001, 0x00000004, 0x00000005, 0x00020001, 0x00000006, 
@@ -624,40 +624,40 @@ UINT32 g_huffman_table_33[31] = {
 	0x0000000f, 
 };
 
-UINT32 g_huffman_main [34][3] = {
-	{ (UINT32) 0                 ,   0,  0 },	/* Table  0 */
-	{ (UINT32) g_huffman_table_1 ,   7,  0 },	/* Table  1 */
-	{ (UINT32) g_huffman_table_2 ,  17,  0 },	/* Table  2 */
-	{ (UINT32) g_huffman_table_3 ,  17,  0 },	/* Table  3 */
-	{ (UINT32) 0                 ,   0,  0 },	/* Table  4 */
-	{ (UINT32) g_huffman_table_5 ,  31,  0 },	/* Table  5 */
-	{ (UINT32) g_huffman_table_6 ,  31,  0 },	/* Table  6 */
-	{ (UINT32) g_huffman_table_7 ,  71,  0 },	/* Table  7 */
-	{ (UINT32) g_huffman_table_8 ,  71,  0 },	/* Table  8 */
-	{ (UINT32) g_huffman_table_9 ,  71,  0 },	/* Table  9 */
-	{ (UINT32) g_huffman_table_10, 127,  0 },	/* Table 10 */
-	{ (UINT32) g_huffman_table_11, 127,  0 },	/* Table 11 */
-	{ (UINT32) g_huffman_table_12, 127,  0 },	/* Table 12 */
-	{ (UINT32) g_huffman_table_13, 511,  0 },	/* Table 13 */
-	{ (UINT32) 0                 ,   0,  0 },	/* Table 14 */
-	{ (UINT32) g_huffman_table_15, 511,  0 },	/* Table 15 */
-	{ (UINT32) g_huffman_table_16, 511,  1 },	/* Table 16 */
-	{ (UINT32) g_huffman_table_16, 511,  2 },	/* Table 17 */
-	{ (UINT32) g_huffman_table_16, 511,  3 },	/* Table 18 */
-	{ (UINT32) g_huffman_table_16, 511,  4 },	/* Table 19 */
-	{ (UINT32) g_huffman_table_16, 511,  6 },	/* Table 20 */
-	{ (UINT32) g_huffman_table_16, 511,  8 },	/* Table 21 */
-	{ (UINT32) g_huffman_table_16, 511, 10 },	/* Table 22 */
-	{ (UINT32) g_huffman_table_16, 511, 13 },	/* Table 23 */
-	{ (UINT32) g_huffman_table_24, 512,  4 },	/* Table 24 */
-	{ (UINT32) g_huffman_table_24, 512,  5 },	/* Table 25 */
-	{ (UINT32) g_huffman_table_24, 512,  6 },	/* Table 26 */
-	{ (UINT32) g_huffman_table_24, 512,  7 },	/* Table 27 */
-	{ (UINT32) g_huffman_table_24, 512,  8 },	/* Table 28 */
-	{ (UINT32) g_huffman_table_24, 512,  9 },	/* Table 29 */
-	{ (UINT32) g_huffman_table_24, 512, 11 },	/* Table 30 */
-	{ (UINT32) g_huffman_table_24, 512, 13 },	/* Table 31 */
-	{ (UINT32) g_huffman_table_32,  31,  0 },	/* Table 32 */
-	{ (UINT32) g_huffman_table_33,  31,  0 },	/* Table 33 */
+hufftables g_huffman_main [34] = {
+	{ (uint32_t *) 0                 ,   0,  0 },	/* Table  0 */
+	{ (uint32_t *) g_huffman_table_1 ,   7,  0 },	/* Table  1 */
+	{ (uint32_t *) g_huffman_table_2 ,  17,  0 },	/* Table  2 */
+	{ (uint32_t *) g_huffman_table_3 ,  17,  0 },	/* Table  3 */
+	{ (uint32_t *) 0                 ,   0,  0 },	/* Table  4 */
+	{ (uint32_t *) g_huffman_table_5 ,  31,  0 },	/* Table  5 */
+	{ (uint32_t *) g_huffman_table_6 ,  31,  0 },	/* Table  6 */
+	{ (uint32_t *) g_huffman_table_7 ,  71,  0 },	/* Table  7 */
+	{ (uint32_t *) g_huffman_table_8 ,  71,  0 },	/* Table  8 */
+	{ (uint32_t *) g_huffman_table_9 ,  71,  0 },	/* Table  9 */
+	{ (uint32_t *) g_huffman_table_10, 127,  0 },	/* Table 10 */
+	{ (uint32_t *) g_huffman_table_11, 127,  0 },	/* Table 11 */
+	{ (uint32_t *) g_huffman_table_12, 127,  0 },	/* Table 12 */
+	{ (uint32_t *) g_huffman_table_13, 511,  0 },	/* Table 13 */
+	{ (uint32_t *) 0                 ,   0,  0 },	/* Table 14 */
+	{ (uint32_t *) g_huffman_table_15, 511,  0 },	/* Table 15 */
+	{ (uint32_t *) g_huffman_table_16, 511,  1 },	/* Table 16 */
+	{ (uint32_t *) g_huffman_table_16, 511,  2 },	/* Table 17 */
+	{ (uint32_t *) g_huffman_table_16, 511,  3 },	/* Table 18 */
+	{ (uint32_t *) g_huffman_table_16, 511,  4 },	/* Table 19 */
+	{ (uint32_t *) g_huffman_table_16, 511,  6 },	/* Table 20 */
+	{ (uint32_t *) g_huffman_table_16, 511,  8 },	/* Table 21 */
+	{ (uint32_t *) g_huffman_table_16, 511, 10 },	/* Table 22 */
+	{ (uint32_t *) g_huffman_table_16, 511, 13 },	/* Table 23 */
+	{ (uint32_t *) g_huffman_table_24, 512,  4 },	/* Table 24 */
+	{ (uint32_t *) g_huffman_table_24, 512,  5 },	/* Table 25 */
+	{ (uint32_t *) g_huffman_table_24, 512,  6 },	/* Table 26 */
+	{ (uint32_t *) g_huffman_table_24, 512,  7 },	/* Table 27 */
+	{ (uint32_t *) g_huffman_table_24, 512,  8 },	/* Table 28 */
+	{ (uint32_t *) g_huffman_table_24, 512,  9 },	/* Table 29 */
+	{ (uint32_t *) g_huffman_table_24, 512, 11 },	/* Table 30 */
+	{ (uint32_t *) g_huffman_table_24, 512, 13 },	/* Table 31 */
+	{ (uint32_t *) g_huffman_table_32,  31,  0 },	/* Table 32 */
+	{ (uint32_t *) g_huffman_table_33,  31,  0 },	/* Table 33 */
 };
 

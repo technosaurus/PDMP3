@@ -14,31 +14,31 @@
 #include "debug.h"
 
 /* External functions and variables (defined elsewhere, and used here) */
-extern UINT32  g_main_data_top;
-void audio_write (UINT32 *samples, UINT32 nsamples, int sample_rate);
+extern uint32_t  g_main_data_top;
+void audio_write (uint32_t *samples, uint32_t nsamples, int sample_rate);
 
 /* Global functions and variables (defined here, and used here & elsewhere) */
 STATUS MPG_Decode_L3 (void);
 
 /* Local functions and variables (defined here, used here) */
-static void MPG_L3_Requantize (UINT32 gr, UINT32 ch);
-static void MPG_Requantize_Process_Long (UINT32 gr, UINT32 ch, 
-					 UINT32 is_pos, UINT32 sfb);
-static void MPG_Requantize_Process_Short (UINT32 gr, UINT32 ch, UINT32 is_pos, 
-					  UINT32 sfb, UINT32 win);
-static void MPG_L3_Reorder (UINT32 gr, UINT32 ch);
-static void MPG_L3_Stereo (UINT32 gr);
-static void MPG_Stereo_Process_Intensity_Long (UINT32 gr, UINT32 sfb);
-static void MPG_Stereo_Process_Intensity_Short (UINT32 gr, UINT32 sfb);
-static void MPG_L3_Antialias (UINT32 gr, UINT32 ch);
-static void MPG_L3_Hybrid_Synthesis (UINT32 gr, UINT32 ch);
-static void MPG_IMDCT_Win (FLOAT32 in[18], FLOAT32 out[36], UINT32 block_type);
-static void MPG_L3_Frequency_Inversion (UINT32 gr, UINT32 ch);
-static void MPG_L3_Subband_Synthesis (UINT32 gr, UINT32 ch, 
-				      UINT32 outdata[576]);
+static void MPG_L3_Requantize (uint32_t gr, uint32_t ch);
+static void MPG_Requantize_Process_Long (uint32_t gr, uint32_t ch, 
+					 uint32_t is_pos, uint32_t sfb);
+static void MPG_Requantize_Process_Short (uint32_t gr, uint32_t ch, uint32_t is_pos, 
+					  uint32_t sfb, uint32_t win);
+static void MPG_L3_Reorder (uint32_t gr, uint32_t ch);
+static void MPG_L3_Stereo (uint32_t gr);
+static void MPG_Stereo_Process_Intensity_Long (uint32_t gr, uint32_t sfb);
+static void MPG_Stereo_Process_Intensity_Short (uint32_t gr, uint32_t sfb);
+static void MPG_L3_Antialias (uint32_t gr, uint32_t ch);
+static void MPG_L3_Hybrid_Synthesis (uint32_t gr, uint32_t ch);
+static void MPG_IMDCT_Win (float in[18], float out[36], uint32_t block_type);
+static void MPG_L3_Frequency_Inversion (uint32_t gr, uint32_t ch);
+static void MPG_L3_Subband_Synthesis (uint32_t gr, uint32_t ch, 
+				      uint32_t outdata[576]);
 
-static UINT32 hsynth_init = 1;
-static UINT32 synth_init = 1;
+static uint32_t hsynth_init = 1;
+static uint32_t synth_init = 1;
 
 
 /******************************************************************************
@@ -72,8 +72,8 @@ MPG_Decode_L3_Init_Song (void)
 STATUS
 MPG_Decode_L3 (void)
 {
-  UINT32 gr, ch, nch;
-  UINT32 out[576];		
+  uint32_t gr, ch, nch;
+  uint32_t out[576];		
 
 
   /* Number of channels (1 for mono and 2 for stereo) */
@@ -152,7 +152,7 @@ MPG_Decode_L3 (void)
     }
 #endif /* OUTPUT_DBG */
      
-    audio_write ((UINT32 *) out, 576,
+    audio_write ((uint32_t *) out, 576,
                  g_sampling_frequency[g_frame_header.sampling_frequency]);
 
   } /* end for (gr... */
@@ -173,11 +173,11 @@ MPG_Decode_L3 (void)
 *
 ******************************************************************************/
 static void 
-MPG_L3_Requantize (UINT32 gr, UINT32 ch)
+MPG_L3_Requantize (uint32_t gr, uint32_t ch)
 {
-  UINT32 sfb /* scalefac band index */;
-  UINT32 next_sfb /* frequency of next sfb */;
-  UINT32 sfreq, i, j, win, win_len;
+  uint32_t sfb /* scalefac band index */;
+  uint32_t next_sfb /* frequency of next sfb */;
+  uint32_t sfreq, i, j, win, win_len;
 
 
   /* Setup sampling frequency index */
@@ -290,10 +290,10 @@ MPG_L3_Requantize (UINT32 gr, UINT32 ch)
 *
 ******************************************************************************/
 static void
-MPG_Requantize_Process_Long (UINT32 gr, UINT32 ch, UINT32 is_pos, UINT32 sfb)
+MPG_Requantize_Process_Long (uint32_t gr, uint32_t ch, uint32_t is_pos, uint32_t sfb)
 {
-  FLOAT32 res, tmp1, tmp2, tmp3, sf_mult, pf_x_pt;
-  static FLOAT32 pretab[21] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
+  float res, tmp1, tmp2, tmp3, sf_mult, pf_x_pt;
+  static float pretab[21] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
 				1, 1, 1, 1, 2, 2, 3, 3, 3, 2 };
 
   
@@ -303,7 +303,7 @@ MPG_Requantize_Process_Long (UINT32 gr, UINT32 ch, UINT32 is_pos, UINT32 sfb)
   tmp1 = 
     pow (2.0, -(sf_mult * (g_main_data.scalefac_l[gr][ch][sfb] + pf_x_pt)));
 
-  tmp2 = pow (2.0, 0.25 * ((INT32) g_side_info.global_gain[gr][ch] - 210));
+  tmp2 = pow (2.0, 0.25 * ((int32_t) g_side_info.global_gain[gr][ch] - 210));
 
   if (g_main_data.is[gr][ch][is_pos] < 0.0) {
     tmp3 = pow (-g_main_data.is[gr][ch][is_pos], 4.0 / 3.0); 
@@ -331,10 +331,10 @@ MPG_Requantize_Process_Long (UINT32 gr, UINT32 ch, UINT32 is_pos, UINT32 sfb)
 *
 ******************************************************************************/
 static void
-MPG_Requantize_Process_Short (UINT32 gr, UINT32 ch, UINT32 is_pos, 
-			      UINT32 sfb, UINT32 win)
+MPG_Requantize_Process_Short (uint32_t gr, uint32_t ch, uint32_t is_pos, 
+			      uint32_t sfb, uint32_t win)
 {
-  FLOAT32 res, tmp1, tmp2, tmp3, sf_mult;
+  float res, tmp1, tmp2, tmp3, sf_mult;
 
 
   sf_mult = g_side_info.scalefac_scale[gr][ch] ? 1.0 : 0.5;
@@ -343,8 +343,8 @@ MPG_Requantize_Process_Short (UINT32 gr, UINT32 ch, UINT32 is_pos,
     pow (2.0, -(sf_mult * g_main_data.scalefac_s[gr][ch][sfb][win]));
 
   tmp2 = 
-    pow (2.0, 0.25 * ((FLOAT32) g_side_info.global_gain[gr][ch] - 210.0 -
-		      8.0 * (FLOAT32) g_side_info.subblock_gain[gr][ch][win]));
+    pow (2.0, 0.25 * ((float) g_side_info.global_gain[gr][ch] - 210.0 -
+		      8.0 * (float) g_side_info.subblock_gain[gr][ch][win]));
 
   if (g_main_data.is[gr][ch][is_pos] < 0.0) {
     tmp3 = pow (-g_main_data.is[gr][ch][is_pos], 4.0 / 3.0);
@@ -371,10 +371,10 @@ MPG_Requantize_Process_Short (UINT32 gr, UINT32 ch, UINT32 is_pos,
 *
 ******************************************************************************/
 static void 
-MPG_L3_Reorder (UINT32 gr, UINT32 ch)
+MPG_L3_Reorder (uint32_t gr, uint32_t ch)
 {
-  UINT32 sfreq, i, j, next_sfb, sfb, win_len, win;
-  FLOAT32 re[576]; 
+  uint32_t sfreq, i, j, next_sfb, sfb, win_len, win;
+  float re[576]; 
 
 
   /* Setup sampling frequency index */
@@ -469,12 +469,12 @@ MPG_L3_Reorder (UINT32 gr, UINT32 ch)
 *
 ******************************************************************************/
 static void 
-MPG_L3_Stereo (UINT32 gr)
+MPG_L3_Stereo (uint32_t gr)
 {
-  UINT32 max_pos, i;
-  FLOAT32 left, right;
-  UINT32 sfb /* scalefac band index */;
-  UINT32 sfreq;
+  uint32_t max_pos, i;
+  float left, right;
+  uint32_t sfb /* scalefac band index */;
+  uint32_t sfreq;
   
   
 
@@ -595,16 +595,16 @@ MPG_L3_Stereo (UINT32 gr)
 *
 ******************************************************************************/
 static void
-MPG_Stereo_Process_Intensity_Long (UINT32 gr, UINT32 sfb)
+MPG_Stereo_Process_Intensity_Long (uint32_t gr, uint32_t sfb)
 {
   static int init = 0;
-  static FLOAT32 is_ratios[6];
-  UINT32 i;
-  UINT32 sfreq;
-  UINT32 sfb_start, sfb_stop;
-  UINT32 is_pos;
-  FLOAT32 is_ratio_l, is_ratio_r;
-  FLOAT32 left, right;
+  static float is_ratios[6];
+  uint32_t i;
+  uint32_t sfreq;
+  uint32_t sfb_start, sfb_stop;
+  uint32_t is_pos;
+  float is_ratio_l, is_ratio_r;
+  float left, right;
 
 
   /* First-time init */
@@ -660,13 +660,13 @@ MPG_Stereo_Process_Intensity_Long (UINT32 gr, UINT32 sfb)
 *
 ******************************************************************************/
 static void
-MPG_Stereo_Process_Intensity_Short (UINT32 gr, UINT32 sfb)
+MPG_Stereo_Process_Intensity_Short (uint32_t gr, uint32_t sfb)
 {
-  UINT32 i;
-  FLOAT32 left, right;
-  UINT32 sfb_start, sfb_stop;
-  UINT32 is_pos, is_ratio_l, is_ratio_r, is_ratios[6];
-  UINT32 sfreq, win, win_len;
+  uint32_t i;
+  float left, right;
+  uint32_t sfb_start, sfb_stop;
+  uint32_t is_pos, is_ratio_l, is_ratio_r, is_ratios[6];
+  uint32_t sfreq, win, win_len;
 
 
   /* Setup sampling frequency index */
@@ -720,14 +720,14 @@ MPG_Stereo_Process_Intensity_Short (UINT32 gr, UINT32 sfb)
 *
 ******************************************************************************/
 static void 
-MPG_L3_Antialias (UINT32 gr, UINT32 ch)
+MPG_L3_Antialias (uint32_t gr, uint32_t ch)
 {
-  UINT32 sb /* subband of 18 samples */, i, sblim, ui, li;
-  FLOAT32 ub, lb;
-  static FLOAT32 cs[8], ca[8];
-  static FLOAT32 ci[8] = { -0.6,   -0.535, -0.33,   -0.185, 
+  uint32_t sb /* subband of 18 samples */, i, sblim, ui, li;
+  float ub, lb;
+  static float cs[8], ca[8];
+  static float ci[8] = { -0.6,   -0.535, -0.33,   -0.185, 
 			   -0.095, -0.041, -0.0142, -0.0037 };
-  static UINT32 init = 1;
+  static uint32_t init = 1;
 
 
   if (init) {
@@ -784,11 +784,11 @@ MPG_L3_Antialias (UINT32 gr, UINT32 ch)
 *
 ******************************************************************************/
 static void 
-MPG_L3_Hybrid_Synthesis (UINT32 gr, UINT32 ch)
+MPG_L3_Hybrid_Synthesis (uint32_t gr, uint32_t ch)
 {
-  UINT32 sb, i, j, bt;
-  FLOAT32 rawout[36];	
-  static FLOAT32 store[2][32][18]; 
+  uint32_t sb, i, j, bt;
+  float rawout[36];	
+  static float store[2][32][18]; 
 
 
   if (hsynth_init) {
@@ -843,13 +843,13 @@ MPG_L3_Hybrid_Synthesis (UINT32 gr, UINT32 ch)
 *
 ******************************************************************************/
 static void 
-MPG_IMDCT_Win (FLOAT32 in[18], FLOAT32 out[36], UINT32 block_type)
+MPG_IMDCT_Win (float in[18], float out[36], uint32_t block_type)
 {
-  static FLOAT32 g_imdct_win[4][36];	
-  UINT32 i, m, N, p;
-  FLOAT32 tmp[12], sum;
-  FLOAT32 tin[18];
-  static UINT32 init = 1;
+  static float g_imdct_win[4][36];	
+  uint32_t i, m, N, p;
+  float tmp[12], sum;
+  float tin[18];
+  static uint32_t init = 1;
   
 
   /* Setup the four (one for each block type) window vectors */
@@ -943,9 +943,9 @@ MPG_IMDCT_Win (FLOAT32 in[18], FLOAT32 out[36], UINT32 block_type)
 *
 ******************************************************************************/
 static void 
-MPG_L3_Frequency_Inversion (UINT32 gr, UINT32 ch)
+MPG_L3_Frequency_Inversion (uint32_t gr, uint32_t ch)
 {
-  UINT32 sb, i;
+  uint32_t sb, i;
 
 
   for (sb = 1; sb < 32; sb += 2) {
@@ -970,17 +970,17 @@ MPG_L3_Frequency_Inversion (UINT32 gr, UINT32 ch)
 *
 ******************************************************************************/
 static void 
-MPG_L3_Subband_Synthesis (UINT32 gr, UINT32 ch, UINT32 outdata[576])
+MPG_L3_Subband_Synthesis (uint32_t gr, uint32_t ch, uint32_t outdata[576])
 {
-  FLOAT32 u_vec[512];		
-  FLOAT32 s_vec[32], sum; /* u_vec can be used insted of s_vec */
-  INT32 samp;
-  UINT32 ss;
-  static UINT32 init = 1;
-  UINT32 i, j;
-  UINT32 nch;
-  static FLOAT32 g_synth_n_win[64][32];	
-  static FLOAT32 v_vec[2 /* ch */][1024]; 
+  float u_vec[512];		
+  float s_vec[32], sum; /* u_vec can be used insted of s_vec */
+  int32_t samp;
+  uint32_t ss;
+  static uint32_t init = 1;
+  uint32_t i, j;
+  uint32_t nch;
+  static float g_synth_n_win[64][32];	
+  static float v_vec[2 /* ch */][1024]; 
 
 
   /* Number of channels (1 for mono and 2 for stereo) */
@@ -992,7 +992,7 @@ MPG_L3_Subband_Synthesis (UINT32 gr, UINT32 ch, UINT32 outdata[576])
 
     for (i = 0; i < 64; i++) {
       for (j = 0; j < 32; j++) {
-	g_synth_n_win[i][j] = cos (((FLOAT32) (16+i)*(2*j+1)) * (C_PI/64.0));
+	g_synth_n_win[i][j] = cos (((float) (16+i)*(2*j+1)) * (C_PI/64.0));
       }
     }
     
@@ -1028,7 +1028,7 @@ MPG_L3_Subband_Synthesis (UINT32 gr, UINT32 ch, UINT32 outdata[576])
 
     /* Copy the next 32 time samples to a temp vector */
     for (i = 0; i < 32; i++) {
-      s_vec[i] = ((FLOAT32) g_main_data.is[gr][ch][i*18 + ss]);
+      s_vec[i] = ((float) g_main_data.is[gr][ch][i*18 + ss]);
     }
 
     /* Matrix multiply the input data vector with the n_win[][] matrix */
@@ -1064,7 +1064,7 @@ MPG_L3_Subband_Synthesis (UINT32 gr, UINT32 ch, UINT32 outdata[576])
       }
       
       /* sum now contains time sample 32*ss+i. Convert to 16-bit signed int */
-      samp = (INT32) (sum * 32767.0);
+      samp = (int32_t) (sum * 32767.0);
       if (samp > 32767) {
 	samp = 32767;
       } else if (samp < -32767) {

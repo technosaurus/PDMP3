@@ -33,8 +33,8 @@ float coeff[DIM];
 float table[32];
 float guess[65];
 
-typedef float FLOAT32;
-typedef unsigned int UINT32;
+typedef float float;
+typedef unsigned int uint32_t;
 
 float func (float x, float c[DIM]);
 void calc_pol (void);
@@ -60,17 +60,17 @@ init (void)
 float
 newton (int is_pos)
 {
-  FLOAT32 a4, a2;
-  FLOAT32 x, x2, x3, x_next;
-  static FLOAT32 powtab34[32];
-  static UINT32 init = 0;
-  UINT32 i;
+  float a4, a2;
+  float x, x2, x3, x_next;
+  static float powtab34[32];
+  static uint32_t init = 0;
+  uint32_t i;
 
 
   /* First time initialization */
   if (init == 0) {
     for (i = 0; i < 32; i++) {
-      powtab34[i] = pow ((FLOAT32) i, 4.0 / 3.0);
+      powtab34[i] = pow ((float) i, 4.0 / 3.0);
     }
     init = 1;
   }
@@ -104,8 +104,8 @@ main (void)
   int i;
   float res;
   float pow_43;
-  FLOAT32 rel_err;
-  FLOAT32 bits;
+  float rel_err;
+  float bits;
 
 
   init ();
@@ -264,7 +264,7 @@ calc_pol (void)
   
   /*  dump (mat, vec); */
 
-  printf ("  static FLOAT32 coeff[%d] = {\n", DIM);
+  printf ("  static float coeff[%d] = {\n", DIM);
   
   for (i = 0; i < DIM; i++) {
 

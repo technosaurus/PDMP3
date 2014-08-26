@@ -22,8 +22,8 @@
 extern char filename[256];
 
 /* Global functions and variables (defined here, and used here & elsewhere) */
-void audio_write (UINT32 *samples, UINT32 nsamples, int sample_rate);
-void audio_write_raw (UINT32 *samples, UINT32 nsamples);
+void audio_write (uint32_t *samples, uint32_t nsamples, int sample_rate);
+void audio_write_raw (uint32_t *samples, uint32_t nsamples);
 
 /* Local functions and variables (defined here, used here) */
 #define AUDIO "/dev/dsp"
@@ -48,7 +48,7 @@ static char audio_name[20] = AUDIO;
 *
 ******************************************************************************/
 void
-audio_write (UINT32 *samples, UINT32 nsamples, int sample_rate)
+audio_write (uint32_t *samples, uint32_t nsamples, int sample_rate)
 {
   static int init = 0, audio, curr_sample_rate = 0;
   int format = AFMT_S16_LE, tmp, dsp_speed = 44100, dsp_stereo = 2;
@@ -126,11 +126,11 @@ audio_write (UINT32 *samples, UINT32 nsamples, int sample_rate)
 *
 ******************************************************************************/
 void
-audio_write_raw (UINT32 *samples, UINT32 nsamples)
+audio_write_raw (uint32_t *samples, uint32_t nsamples)
 {
   static int init = 0, fd;
   char fname[1024];
-  UINT32 lo, hi;
+  uint32_t lo, hi;
   int i, nch;
   unsigned short s[576*2];
 

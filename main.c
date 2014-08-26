@@ -10,7 +10,7 @@
 #include "MP3_Main.h"
 #include "MP3_Decoder.h"
 #include "MP3_Bitstream.h"
-
+#include <string.h>
 #include "debug.h"
 
 /* External functions and variables (defined elsewhere, and used here) */
@@ -34,7 +34,7 @@ char filename[256];
 int
 main (int ac, char *av[])
 {
-  BOOL decode = FALSE;
+  bool decode = FALSE;
   
 
   if (ac != 2) {
