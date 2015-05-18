@@ -20,7 +20,4 @@
 *.i*86
 *.x86_64
 *.hex
-mp3dec
-mp3decoder
-mp3dec_opt
-bcmp
+pdmp3
