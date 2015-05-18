@@ -5,6 +5,14 @@ Public domain mp3 decoder
 
 This project is a fork of the mp3 decoder written by Krister Lagerstrom as part of a master's thesis.
 
+TODO
+----
+  * cleanup,
+  * switch to bitfields,
+  * move init to player_init and song_init,
+  * use streams instead of files,
+  * fix some of the horribly nested logic
+
 >    License: My work is placed in the public domain. You may do whatever you wish with it, including using it for commercial applications.
 
 The thesis and original code are available at:
