@@ -2390,11 +2390,15 @@ static void audio_write_raw(unsigned *samples,unsigned nsamples){
 
   if(init == 0) {
     init = 1;
-    sprintf(fname,"%s.raw",filename);
-    fd = open(fname,O_WRONLY | O_CREAT,0666);
-    if(fd == -1) {
-      perror(fname);
-      exit(-1);
+    if (strcmp(filename, "-")) {
+      sprintf(fname,"%s.raw",filename);
+      fd = open(fname,O_WRONLY | O_CREAT,0666);
+      if(fd == -1) {
+        perror(fname);
+        exit(-1);
+      }
+    } else {
+      fd = 1;
     }
   }
   nch =(g_frame_header.mode == mpeg1_mode_single_channel ? 1 : 2);
