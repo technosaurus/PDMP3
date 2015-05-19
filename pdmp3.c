@@ -1531,7 +1531,9 @@ static int Set_Main_Pos(unsigned bit_pos){
 static unsigned Get_Byte(void){
   unsigned val;
   /* File open? */
-  if((fp ==(FILE *) NULL) &&((fp = fopen(filename,"r")) ==(FILE *) NULL))
+  if ((fp ==(FILE *) NULL) && 
+    !(!filename || !strcmp(filename,"-") && (fp=stdin)) 
+     && ((fp = fopen(filename,"r")) ==(FILE *) NULL))
       Error("Cannot open file\n",0);
   val = fgetc(fp) & 0xff; /* Get byte */
   if(feof(fp)) val = C_EOF; /* EOF? */
@@ -1565,6 +1567,15 @@ static unsigned Get_Filesize(void){
   return(size);
 }
 
+/**Description: close current file
+* Parameters: None
+* Return value: None
+* Author: Isaac Dunham **/
+void Close_File(void){
+  if (fp)
+    fclose(fp);
+  fp = (FILE *) NULL;
+}
 /**Description: gets one bit from the local buffer which contains main_data.
 * Parameters: None
 * Return value: The bit is returned in the LSB of the return value.
@@ -2328,6 +2339,7 @@ static void audio_write(unsigned *samples,unsigned nsamples,int sample_rate){
   static int init = 0,audio,curr_sample_rate = 0;
   int format = AFMT_S16_LE,tmp,dsp_speed = 44100,dsp_stereo = 2;
 
+#ifdef OUTPUT_SOUND
   if(init == 0) {
     init = 1;
     audio = open(audio_name,O_WRONLY,0);
@@ -2348,7 +2360,6 @@ static void audio_write(unsigned *samples,unsigned nsamples,int sample_rate){
     if(ioctl(audio,SNDCTL_DSP_SPEED,&dsp_speed) == -1)
       Error("Unable to set audio speed\n",-1);
   }
-#ifdef OUTPUT_SOUND
   if(write(audio,(char *) samples,nsamples * 4) != nsamples * 4)
     Error("Unable to write audio data\n",-1);
 #endif /* OUTPUT_SOUND */
@@ -2379,11 +2390,15 @@ static void audio_write_raw(unsigned *samples,unsigned nsamples){
 
   if(init == 0) {
     init = 1;
-    sprintf(fname,"%s.raw",filename);
-    fd = open(fname,O_WRONLY | O_CREAT,0666);
-    if(fd == -1) {
-      perror(fname);
-      exit(-1);
+    if (strcmp(filename, "-")) {
+      sprintf(fname,"%s.raw",filename);
+      fd = open(fname,O_WRONLY | O_CREAT,0666);
+      if(fd == -1) {
+        perror(fname);
+        exit(-1);
+      }
+    } else {
+      fd = 1;
     }
   }
   nch =(g_frame_header.mode == mpeg1_mode_single_channel ? 1 : 2);
@@ -2410,12 +2425,13 @@ void pdmp3(char * const *mp3s){
   if(!strncmp("/dev/dsp",*mp3s,8)){
     audio_name = *mp3s++;
   }
-  while(*mp3s){ /*FIXME ... need to close files above*/
+  while(*mp3s){
     filename = *mp3s++;
     while(Get_Filepos() != C_EOF) {
       if(Read_Frame() == OK) Decode_L3();
       else if(Get_Filepos() == C_EOF) break;
       else ERR("Not enough maindata to decode frame\n");
     }
+    Close_File();
   }
 }
