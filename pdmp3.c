@@ -1531,7 +1531,9 @@ static int Set_Main_Pos(unsigned bit_pos){
 static unsigned Get_Byte(void){
   unsigned val;
   /* File open? */
-  if((fp ==(FILE *) NULL) &&((fp = fopen(filename,"r")) ==(FILE *) NULL))
+  if ((fp ==(FILE *) NULL) && 
+    !(!filename || !strcmp(filename,"-") && (fp=stdin)) 
+     && ((fp = fopen(filename,"r")) ==(FILE *) NULL))
       Error("Cannot open file\n",0);
   val = fgetc(fp) & 0xff; /* Get byte */
   if(feof(fp)) val = C_EOF; /* EOF? */
