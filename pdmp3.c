@@ -2330,6 +2330,7 @@ static void audio_write(unsigned *samples,unsigned nsamples,int sample_rate){
   static int init = 0,audio,curr_sample_rate = 0;
   int format = AFMT_S16_LE,tmp,dsp_speed = 44100,dsp_stereo = 2;
 
+#ifdef OUTPUT_SOUND
   if(init == 0) {
     init = 1;
     audio = open(audio_name,O_WRONLY,0);
@@ -2350,7 +2351,6 @@ static void audio_write(unsigned *samples,unsigned nsamples,int sample_rate){
     if(ioctl(audio,SNDCTL_DSP_SPEED,&dsp_speed) == -1)
       Error("Unable to set audio speed\n",-1);
   }
-#ifdef OUTPUT_SOUND
   if(write(audio,(char *) samples,nsamples * 4) != nsamples * 4)
     Error("Unable to write audio data\n",-1);
 #endif /* OUTPUT_SOUND */
