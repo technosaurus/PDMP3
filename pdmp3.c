@@ -1567,6 +1567,15 @@ static unsigned Get_Filesize(void){
   return(size);
 }
 
+/**Description: close current file
+* Parameters: None
+* Return value: None
+* Author: Isaac Dunham **/
+void Close_File(void){
+  if (fp)
+    fclose(fp);
+  fp = (FILE *) NULL;
+}
 /**Description: gets one bit from the local buffer which contains main_data.
 * Parameters: None
 * Return value: The bit is returned in the LSB of the return value.
@@ -2412,12 +2421,13 @@ void pdmp3(char * const *mp3s){
   if(!strncmp("/dev/dsp",*mp3s,8)){
     audio_name = *mp3s++;
   }
-  while(*mp3s){ /*FIXME ... need to close files above*/
+  while(*mp3s){
     filename = *mp3s++;
     while(Get_Filepos() != C_EOF) {
       if(Read_Frame() == OK) Decode_L3();
       else if(Get_Filepos() == C_EOF) break;
       else ERR("Not enough maindata to decode frame\n");
     }
+    Close_File();
   }
 }
