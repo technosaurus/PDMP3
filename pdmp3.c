@@ -118,13 +118,13 @@ t_sf_band_indices;
 #define PDMP3_NEW_FORMAT -11
 #define PDMP3_NO_SPACE     7
 
-#define PDMP3_ENC_SIGNED_16 (0x080|0x040|0x20)
+#define PDMP3_ENC_SIGNED_16 (0x080|0x040|0x10)
 
 #define INBUF_SIZE      (4*4096)
 typedef struct
 {
   size_t processed;
-  unsigned istart, iend;
+  unsigned istart,iend,ostart;
   unsigned char in[INBUF_SIZE];
   unsigned out[2][576];
   t_mpeg1_header g_frame_header;
@@ -152,7 +152,7 @@ void pdmp3_delete(pdmp3_handle *id);
 int pdmp3_open_feed(pdmp3_handle *id);
 int pdmp3_feed(pdmp3_handle *id,const unsigned char *in,size_t size);
 int pdmp3_read(pdmp3_handle *id,unsigned char *outmemory,size_t outsize,size_t *done);
-int pdmp3_decode(pdmp3_handle *id, const unsigned char *in, size_t insize, unsigned char *out, size_t outsize, size_t *done);
+int pdmp3_decode(pdmp3_handle *id,const unsigned char *in,size_t insize,unsigned char *out,size_t outsize,size_t *done);
 int pdmp3_getformat(pdmp3_handle *id,long *rate,int *channels,int *encoding);
 /** end of the subset of a libmpg123 compatible streaming API */
 
@@ -202,6 +202,9 @@ static int Read_Header(pdmp3_handle *id);
 static int Read_Main_L3(pdmp3_handle *id);
 static int Set_Main_Pos(pdmp3_handle *id,unsigned bit_pos);
 
+static unsigned Get_Inbuf_Filled(pdmp3_handle *id);
+static unsigned Get_Inbuf_Free(pdmp3_handle *id);
+
 static unsigned Get_Byte(pdmp3_handle *id);
 static unsigned Get_Main_Bit(pdmp3_handle *id);
 static unsigned Get_Main_Bits(pdmp3_handle *id,unsigned number_of_bits);
@@ -209,7 +212,6 @@ static unsigned Get_Main_Pos(pdmp3_handle *id);
 static unsigned Get_Side_Bits(pdmp3_handle *id,unsigned number_of_bits);
 static unsigned Get_Filepos(pdmp3_handle *id);
 
-static void Decode_L3_Init_Song(pdmp3_handle *id);
 static void Error(const char *s,int e);
 static void Get_Sideinfo(pdmp3_handle *id,unsigned sideinfo_size);
 static void IMDCT_Win(float in[18],float out[36],unsigned block_type);
@@ -1053,6 +1055,15 @@ static int Decode_L3(pdmp3_handle *id){
   return(PDMP3_OK);   /* Done */
 }
 
+static unsigned Get_Inbuf_Filled(pdmp3_handle *id) {
+  return (id->istart<=id->iend)?(id->iend-id->istart):(INBUF_SIZE-id->istart+id->iend);
+}
+
+static unsigned Get_Inbuf_Free(pdmp3_handle *id) {
+  return  (id->iend<id->istart)?(id->istart-id->iend):(INBUF_SIZE-id->iend+id->istart);
+}
+
+
 /** Description: reads 'no_of_bytes' from input stream into 'data_vec[]'.
 *   Parameters: Stream handle,number of bytes to read,vector pointer where to
                 store them.
@@ -1200,7 +1211,6 @@ static int Read_CRC(pdmp3_handle *id){
 * Return value: PDMP3_OK if a frame is successfully read,PDMP3_ERR otherwise.
 * Author: Krister Lagerström(krister@kmlager.com) **/
 static int Read_Frame(pdmp3_handle *id){
-  if(Get_Filepos(id) == 0) Decode_L3_Init_Song(id);
   /* Try to find the next frame in the bitstream and decode it */
   if(Read_Header(id) != PDMP3_OK) return(PDMP3_ERR);
 #ifdef DEBUG
@@ -1302,7 +1312,7 @@ static int Read_Header(pdmp3_handle *id) {
   }
   id->g_frame_header.layer = 4 - id->g_frame_header.layer;
   /* DBG("Header         =   0x%08x\n",header); */
-  if (!id->new_header) id->new_header = 1;
+  if(!id->new_header) id->new_header = 1;
   return(PDMP3_OK);  /* Done */
 }
 
@@ -1430,9 +1440,9 @@ static int Set_Main_Pos(pdmp3_handle *id,unsigned bit_pos){
 * Author: Erik Hofman(erik@ehofman.com) **/
 static unsigned Get_Byte(pdmp3_handle *id){
   unsigned val = C_EOF;
-  if (id->istart != id->iend){
+  if(id->istart != id->iend){
     val = id->in[id->istart++]; //  && 0xff;
-    if (id->istart == INBUF_SIZE){
+    if(id->istart == INBUF_SIZE){
       id->istart=0;
     }
     id->processed++;
@@ -1607,15 +1617,6 @@ static int Huffman_Decode(pdmp3_handle *id,unsigned table_num,int32_t *x,int32_t
     if((*y > 0)&&(Get_Main_Bit(id) == 1)) *y = -*y;/* Get sign bit */
   }
   return(error ? PDMP3_ERR : PDMP3_OK);  /* Done */
-}
-
-/**Description: reinit decoder before playing new song,or seeking current song.
-* Parameters: Stream handle.
-* Return value: None
-* Author: Krister Lagerström(krister@kmlager.com) **/
-static void Decode_L3_Init_Song(pdmp3_handle *id){
-  id->hsynth_init = id->synth_init = 1;
-  id->g_main_data_top = 0; /* Clear bit reservoir */
 }
 
 /**Description: Does inverse modified DCT and windowing.
@@ -2209,17 +2210,14 @@ static void Stereo_Process_Intensity_Short(pdmp3_handle *id,unsigned gr,unsigned
 * krister  010101  Initial revision
 *
 ******************************************************************************/
-static void audio_write_raw(pdmp3_handle *id,const char *filename,unsigned *samples,unsigned nsamples){
+static void audio_write_raw(const char *filename,unsigned *samples,unsigned nbytes){
   static int init = 0,fd;
   char fname[1024];
-  unsigned lo,hi;
-  int i,nch;
-  unsigned short s[576*2];
 
   if(init == 0) {
     init = 1;
-    if (strcmp(filename, "-")) {
-      sprintf(fname,"%s.raw",filename);
+    if(strcmp(filename,"-")) {
+      snprintf(fname,1023,"%s.raw",filename);
       fd = open(fname,O_WRONLY | O_CREAT,0666);
       if(fd == -1) {
         perror(fname);
@@ -2229,19 +2227,8 @@ static void audio_write_raw(pdmp3_handle *id,const char *filename,unsigned *samp
       fd = 1;
     }
   }
-  nch =(id->g_frame_header.mode == mpeg1_mode_single_channel ? 1 : 2);
-  for(i = 0; i < nsamples; i++) {
-    if(nch == 1) {
-      lo = samples[i] & 0xffff;
-      s[i] = lo;
-    }else{
-      lo = samples[i] & 0xffff;
-      hi =(samples[i] & 0xffff0000) >> 16;
-      s[2*i] = hi;
-      s[2*i+1] = lo;
-    }
-  }
-  if(write(fd,(char *) s,nsamples * 2 * nch) != nsamples * 2 * nch)
+
+  if(write(fd,samples,nbytes) != nbytes)
     Error("Unable to write raw data\n",-1);
   return;
 } /* audio_write_raw() */
@@ -2251,12 +2238,11 @@ static void audio_write_raw(pdmp3_handle *id,const char *filename,unsigned *samp
 * Parameters: Stream handle,audio device name,file name.
 * Return value: None
 * Author: Krister Lagerström(krister@kmlager.com) **/
-static void audio_write(pdmp3_handle *id,const char *audio_name,const char *filename){
+static void audio_write(pdmp3_handle *id,const char *audio_name,const char *filename,unsigned char *samples,size_t nbytes){
 #ifdef OUTPUT_SOUND
   static int init = 0,audio,curr_sample_rate = 0;
   int format = AFMT_S16_LE,tmp,dsp_speed = 44100,dsp_stereo = 2;
   int sample_rate = g_sampling_frequency[id->g_frame_header.sampling_frequency];
-  int gr;
 
   if(init == 0) {
     init = 1;
@@ -2279,16 +2265,11 @@ static void audio_write(pdmp3_handle *id,const char *audio_name,const char *file
       Error("Unable to set audio speed\n",-1);
   }
 
-  for(gr = 0; gr < 2; gr++) {
-    if(write(audio,(char *) id->out[gr],576 * 4) != 576 * 4)
-      Error("Unable to write audio data\n",-1);
-  }
+  if(write(audio,samples,nbytes) != nbytes)
+    Error("Unable to write audio data\n",-1);
 #endif /* OUTPUT_SOUND */
 #ifdef OUTPUT_RAW
-  int gr;
-  for(gr = 0; gr < 2; gr++) {
-    audio_write_raw(id,filename,id->out[gr],576);
-  }
+  audio_write_raw(filename,samples,nbytes);
 #endif /* OUTPUT_RAW */
   return;
 } /* audio_write() */
@@ -2298,8 +2279,47 @@ static void audio_write(pdmp3_handle *id,const char *audio_name,const char *file
  * Stream API - Added for AeonWave Audio (http://www.adalin.com)
  * This is a subset of the libmpg123 API and should by 100% compatible.
  *
- * Author: Erik Hofman(erik@ehofman.com)
+ * Au0thor: Erik Hofman(erik@ehofman.com)
  */
+static void Convert_Frame_S16(pdmp3_handle *id,unsigned char *outbuf,size_t buflen,size_t *done)
+{
+  short *s = (short *)outbuf;
+  unsigned lo,hi,nsamps,framesz;
+  int q,i,nch,gr;
+
+  nch = (id->g_frame_header.mode == mpeg1_mode_single_channel ? 1 : 2);
+  framesz = sizeof(short)*nch;
+
+  nsamps = buflen / framesz;
+  if (nsamps > (2*576 - id->ostart)) {
+    nsamps = 2*576 - id->ostart;
+  }
+  *done = nsamps * framesz;
+
+  /* copy to outbuf */
+  i = id->ostart % 576;
+  gr = id->ostart/576;
+  for (q = 0; q < nsamps; ++q) {
+    if(nch == 1) {
+      lo = id->out[gr][i] & 0xffff;
+      s[q] = lo;
+    } else {
+      lo = id->out[gr][i] & 0xffff;
+      hi =(id->out[gr][i] & 0xffff0000) >> 16;
+      s[2*q] = hi;
+      s[2*q+1] = lo;
+    }
+    if (++i == 576) {
+       ++gr;
+       i = 0;
+    }
+  }
+
+  id->ostart += nsamps;
+  if (id->ostart == (2*576)) {
+    id->ostart = 0;
+  }
+}
 
 /**Description: Create a new streaming handle
 * Parameters: None
@@ -2324,7 +2344,8 @@ void pdmp3_delete(pdmp3_handle *id){
 * Return value: PDMP3_OK or PDMP3_ERR
 * Author: Erik Hofman(erik@ehofman.com) **/
 int pdmp3_open_feed(pdmp3_handle *id){
-  if (id) {
+  if(id) {
+    id->ostart = 0;
     id->istart = 0;
     id->iend = 0;
     id->processed = 0;
@@ -2345,29 +2366,29 @@ int pdmp3_open_feed(pdmp3_handle *id){
 * Return value: PDMP3_OK or an error
 * Author: Erik Hofman(erik@ehofman.com) **/
 int pdmp3_feed(pdmp3_handle *id,const unsigned char *in,size_t size){
-  if (id && in && size) {
-    int avail = (id->iend<id->istart)?(id->istart-id->iend):(INBUF_SIZE-id->iend+id->istart);
-    if (size<=avail)
+  if(id && in && size) {
+    int free = Get_Inbuf_Free(id);
+    if(size<=free)
     {
       int res;
-      if (id->iend<id->istart)
+      if(id->iend<id->istart)
       {
          res = id->istart-id->iend;
-         if (size<res) res=size;
-         memcpy(id->in+id->iend, in, res);
+         if(size<res) res=size;
+         memcpy(id->in+id->iend,in,res);
          id->iend += res;
       }
       else
       {
          res = INBUF_SIZE-id->iend;
-         if (size<res) res=size;
-         if (res) {
-            memcpy(id->in+id->iend, in, res);
+         if(size<res) res=size;
+         if(res) {
+            memcpy(id->in+id->iend,in,res);
             id->iend += res;
             size-= res;
          }
-         if (size) {
-            memcpy(id->in, in+res, size);
+         if(size) {
+            memcpy(id->in,in+res,size);
             id->iend = size;
          }
       }
@@ -2385,47 +2406,52 @@ int pdmp3_feed(pdmp3_handle *id,const unsigned char *in,size_t size){
 * Return value: PDMP3_OK or an error.
 * Author: Erik Hofman(erik@ehofman.com) **/
 int pdmp3_read(pdmp3_handle *id,unsigned char *outmemory,size_t outsize,size_t *done){
-  if (id && outmemory && outsize && done) {
-    int res,avail = (id->istart<=id->iend)?(id->iend-id->istart):(INBUF_SIZE-id->istart+id->iend);
-    if (avail >= (2*576) && outsize >= (2*576)) {
-      size_t pos = id->processed;
-      size_t mark = id->istart;
-      if((res = Read_Frame(id)) == PDMP3_OK) {
-        unsigned short *s = (unsigned short*)outmemory;
-        int i,nch,gr;
-        unsigned lo,hi;
+  if(id && outmemory && outsize && done) {
+    *done = 0;
+    if(outsize) {
+      int res;
 
-        Decode_L3(id);
-        *done = 2*576;
+      if (id->ostart) {
+        Convert_Frame_S16(id,outmemory,outsize,done);
+        outmemory += *done;
+        outsize -= *done;
+        res = PDMP3_OK;
+      }
 
-        /* copy to outmemory */
-        nch =(id->g_frame_header.mode == mpeg1_mode_single_channel ? 1 : 2);
-        for(gr = 0; gr < 2; gr++) {
-          for(i = 0; i < 576; i++) {
-            if(nch == 1) {
-              lo = id->out[gr][i] & 0xffff;
-              s[gr*576 + i] = lo;
-            }else{
-              lo = id->out[gr][i] & 0xffff;
-              hi =(id->out[gr][i] & 0xffff0000) >> 16;
-              s[gr*576 + 2*i] = hi;
-              s[gr*576 + 2*i+1] = lo;
-            }
+      while(outsize) {
+        if (Get_Inbuf_Filled(id) >= (2*576)) {
+          size_t pos = id->processed;
+          unsigned mark = id->istart;
+
+          res = Read_Frame(id);
+          if(id->new_header == 1) {
+            id->new_header = -1;
+            return(PDMP3_NEW_FORMAT);
+          }
+
+          if(res == PDMP3_OK || res == PDMP3_NEW_FORMAT) {
+            size_t batch;
+
+            Decode_L3(id);
+            Convert_Frame_S16(id,outmemory,outsize,&batch);
+            outmemory += batch;
+            outsize -= batch;
+            *done += batch;
+          }
+          else {
+            id->processed = pos;
+            id->istart = mark;
+            break;
           }
         }
-
-        if (id->new_header == 1) {
-          id->new_header = -1;
-          res = PDMP3_NEW_FORMAT;
+        else {
+          res = PDMP3_NEED_MORE;
+          break;
         }
-      }
-      else if (res == PDMP3_NEED_MORE) {
-        id->processed = pos;
-        id->istart = mark;
-      }
+      } /* outsize */
       return(res);
     }
-    else if (outsize < (2*576)) {
+    else if(outsize < (2*576)) {
       return(PDMP3_NO_SPACE);
     }
     return(PDMP3_NEED_MORE);
@@ -2438,23 +2464,39 @@ int pdmp3_read(pdmp3_handle *id,unsigned char *outmemory,size_t outsize,size_t *
 * Parameters: Stream handle,a pinter to the MP3 data,size of the MP3 buffer,
               a pointer to a buffer for the PCM data or NULL,the size of
               the PCM buffer in bytes,a pointer to return the number of
-              converted bytes.
+  d->ostart            converted bytes.
 * Return value: PDMP3_OK or an error.
 * Author: Erik Hofman(erik@ehofman.com) **/
-int pdmp3_decode(pdmp3_handle *id, const unsigned char *in, size_t insize, unsigned char *out, size_t outsize, size_t *done)
+int pdmp3_decode(pdmp3_handle *id,const unsigned char *in,size_t insize,unsigned char *out,size_t outsize,size_t *done)
 {
-  size_t avail = (id->iend<id->istart)?(id->istart-id->iend):(INBUF_SIZE-id->iend+id->istart);
+  int free = Get_Inbuf_Free(id);
   int res;
 
   *done = 0;
-  if (avail > insize) avail = insize;
-  res = pdmp3_feed(id, in, avail);
+  if(free > insize) free = insize;
+  res = pdmp3_feed(id,in,free);
 
-  if (res == PDMP3_OK)
+  if(res == PDMP3_OK)
   {
-    *done = avail;
-    if (out && outsize) {
-      res = pdmp3_read(id, out, outsize, &avail);
+    size_t avail;
+    if(out && outsize) {
+      res = pdmp3_read(id,out,outsize,&avail);
+      *done = avail;
+    }
+    else if(Get_Filepos(id) == 0) {
+      if (Get_Inbuf_Filled(id) > 4) {
+        res = Read_Header(id);
+        id->processed = 0;
+        id->istart = 0;
+      }
+      else {
+        res = PDMP3_NEED_MORE;
+      }
+
+      if(id->new_header == 1) {
+        id->new_header = -1;
+        res = PDMP3_NEW_FORMAT;
+      }
     }
   }
   return res;
@@ -2465,7 +2507,7 @@ int pdmp3_decode(pdmp3_handle *id, const unsigned char *in, size_t insize, unsig
 * Return value: PDMP3_OK or an error
 * Author: Erik Hofman(erik@ehofman.com) **/
 int pdmp3_getformat(pdmp3_handle *id,long *rate,int *channels,int *encoding){
-  if (id && rate && channels && encoding) {
+  if(id && rate && channels && encoding) {
     *encoding = PDMP3_ENC_SIGNED_16;
     *rate = g_sampling_frequency[id->g_frame_header.sampling_frequency];
     *channels = (id->g_frame_header.mode == mpeg1_mode_single_channel ? 1 : 2);
@@ -2480,42 +2522,47 @@ int pdmp3_getformat(pdmp3_handle *id,long *rate,int *channels,int *encoding){
 void pdmp3(char * const *mp3s){
   static const char *filename,*audio_name = "/dev/dsp";
   static FILE *fp =(FILE *) NULL;
-  unsigned char out[16*4096];
-  unsigned char in[INBUF_SIZE];
+  unsigned char out[INBUF_SIZE];
   pdmp3_handle *id;
-  size_t res,done;
+  size_t done;
+  int res;
 
   if(!strncmp("/dev/dsp",*mp3s,8)){
     audio_name = *mp3s++;
   }
 
   id = pdmp3_new(NULL,NULL);
-  while(*mp3s){
-    if (id == 0)
-      Error("Cannot open stream API",0);
+  if(id == 0)
+    Error("Cannot open stream API (out of memory)",0);
 
+  while(*mp3s){
     filename = *mp3s++;
-    if (!strcmp(filename,"-")) fp=stdin;
+    if(!strcmp(filename,"-")) fp=stdin;
     else fp = fopen(filename,"r");
-    if (fp == (FILE *) NULL)
+    if(fp == (FILE *) NULL)
       Error("Cannot open file\n",0);
 
     pdmp3_open_feed(id);
-    while((res=pdmp3_read(id,out,16*4096,&done)) != PDMP3_ERR){
-      if (res == PDMP3_OK || res == PDMP3_NEW_FORMAT) {
+    while((res = pdmp3_read(id,out,INBUF_SIZE,&done)) != PDMP3_ERR){
+
+      audio_write(id,audio_name,filename,out,done);
+      if(res == PDMP3_OK || res == PDMP3_NEW_FORMAT) {
 #ifdef DEBUG
-        if (res == PDMP3_NEW_FORMAT) {
-          int enc, channels;
+        if(res == PDMP3_NEW_FORMAT) {
+          int enc,channels;
           long rate;
-          pdmp3_getformat(id, &rate, &channels, &enc);
-          DBG("sample rate: %li Hz, no. channels: %i", rate, channels);
+
+          pdmp3_getformat(id,&rate,&channels,&enc);
+          DBG("sample rate: %li Hz, no. channels: %i",rate,channels);
         }
 #endif
-        audio_write(id,audio_name,filename);
       }
-      else if (res == PDMP3_NEED_MORE){
+      else if(res == PDMP3_NEED_MORE){
+        unsigned char in[1024];
+
         res = fread(in,1,1024,fp);
-        if (!res) break;
+        if(!res) break;
+
         res = pdmp3_feed(id,in,res);
       }
     }
@@ -2523,4 +2570,4 @@ void pdmp3(char * const *mp3s){
   }
   pdmp3_delete(id);
 }
-#endif /* !definend(STB_VORBIS_HEADER_ONLY) */
+#endif /* !definend(PDMP3_HEADER_ONLY) */
