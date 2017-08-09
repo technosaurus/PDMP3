@@ -1322,7 +1322,8 @@ static int Read_Header(pdmp3_handle *id) {
 static int Search_Header(pdmp3_handle *id) {
   unsigned pos = id->processed;
   unsigned mark = id->istart;
-  int res, cnt = 0;
+  int res = PDMP3_NEED_MORE;
+  int cnt = 0;
   while(Get_Inbuf_Filled(id) > 4) {
     res = Read_Header(id);
     if (id->g_frame_header.layer == 3) {
@@ -2431,7 +2432,7 @@ int pdmp3_read(pdmp3_handle *id,unsigned char *outmemory,size_t outsize,size_t *
   if(id && outmemory && outsize && done) {
     *done = 0;
     if(outsize) {
-      int res;
+      int res = PDMP3_ERR;
 
       if (id->ostart) {
         Convert_Frame_S16(id,outmemory,outsize,done);
@@ -2466,7 +2467,7 @@ int pdmp3_read(pdmp3_handle *id,unsigned char *outmemory,size_t outsize,size_t *
           break;
         }
       } /* outsize */
-      if(id->new_header == 1) {
+      if(id->new_header == 1 && res == PDMP3_OK) {
         res = PDMP3_NEW_FORMAT;
       }
       return(res);
@@ -2561,7 +2562,6 @@ void pdmp3(char * const *mp3s){
 
     pdmp3_open_feed(id);
     while((res = pdmp3_read(id,out,INBUF_SIZE,&done)) != PDMP3_ERR){
-
       audio_write(id,audio_name,filename,out,done);
       if(res == PDMP3_OK || res == PDMP3_NEW_FORMAT) {
 #ifdef DEBUG
@@ -2575,9 +2575,9 @@ void pdmp3(char * const *mp3s){
 #endif
       }
       else if(res == PDMP3_NEED_MORE){
-        unsigned char in[1024];
+        unsigned char in[4096];
 
-        res = fread(in,1,1024,fp);
+        res = fread(in,1,4096,fp);
         if(!res) break;
 
         res = pdmp3_feed(id,in,res);
