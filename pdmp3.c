@@ -173,9 +173,13 @@ void pdmp3(char * const *mp3s);
 #define FRAG_SIZE_LN2     0x0011 /* 2^17=128kb */
 #define FRAG_NUMS         0x0004
 
+#ifndef NDEBUG
 #define DBG(str,args...) { printf(str,## args); printf("\n"); }
 #define ERR(str,args...) { fprintf(stderr,str,## args) ; fprintf(stderr,"\n"); }
-#define EXIT(str,args...) { printf(str,## args);  printf("\n"); exit(0); }
+#else
+#define DBG(str,args...)
+#define ERR(str,args...)
+#endif
 
 
 #ifdef DEBUG //debug functions
@@ -198,7 +202,7 @@ static int Huffman_Decode(pdmp3_handle *id,unsigned table_num,int32_t *x,int32_t
 static int Read_Audio_L3(pdmp3_handle *id);
 static int Read_CRC(pdmp3_handle *id);
 static int Read_Frame(pdmp3_handle *id);
-static int Read_Header(pdmp3_handle *id);
+static int Search_Header(pdmp3_handle *id);
 static int Read_Main_L3(pdmp3_handle *id);
 static int Set_Main_Pos(pdmp3_handle *id,unsigned bit_pos);
 
@@ -1098,7 +1102,7 @@ static int Get_Main_Data(pdmp3_handle *id,unsigned main_data_size,unsigned main_
     /* No,there is not,so we skip decoding this frame,but we have to
      * read the main_data bits from the bitstream in case they are needed
      * for decoding the next frame. */
-// (void) Get_Bytes(id,main_data_size,&(id->g_main_data_vec[id->g_main_data_top]));
+   (void) Get_Bytes(id,main_data_size,&(id->g_main_data_vec[id->g_main_data_top]));
     /* Set up pointers */
     id->g_main_data_ptr = &(id->g_main_data_vec[0]);
     id->g_main_data_idx = 0;
@@ -1212,7 +1216,7 @@ static int Read_CRC(pdmp3_handle *id){
 * Author: Krister Lagerström(krister@kmlager.com) **/
 static int Read_Frame(pdmp3_handle *id){
   /* Try to find the next frame in the bitstream and decode it */
-  if(Read_Header(id) != PDMP3_OK) return(PDMP3_ERR);
+  if(Search_Header(id) != PDMP3_OK) return(PDMP3_ERR);
 #ifdef DEBUG
   { static int framenum = 0;
     printf("\nFrame %d\n",framenum++);
@@ -1247,7 +1251,6 @@ static int Read_Frame(pdmp3_handle *id){
 * Author: Krister Lagerström(krister@kmlager.com) **/
 static int Read_Header(pdmp3_handle *id) {
   unsigned b1,b2,b3,b4,header;
-
   /* Get the next four bytes from the bitstream */
   b1 = Get_Byte(id);
   b2 = Get_Byte(id);
@@ -1293,7 +1296,7 @@ static int Read_Header(pdmp3_handle *id) {
   }
   if(id->g_frame_header.bitrate_index == 0) {
     ERR("Free bitrate format NIY!\nHeader word is 0x%08x at file pos %d\n",header,Get_Filepos(id));
-    exit(1);
+    return(PDMP3_ERR); // exit(1);
   }
   if(id->g_frame_header.bitrate_index == 15) {
     ERR("bitrate_index = 15 is invalid!\nHeader word is 0x%08x at file pos %d\n",header,Get_Filepos(id));
@@ -1314,6 +1317,25 @@ static int Read_Header(pdmp3_handle *id) {
   /* DBG("Header         =   0x%08x\n",header); */
   if(!id->new_header) id->new_header = 1;
   return(PDMP3_OK);  /* Done */
+}
+
+static int Search_Header(pdmp3_handle *id) {
+  unsigned pos = id->processed;
+  unsigned mark = id->istart;
+  int res, cnt = 0;
+  while(Get_Inbuf_Filled(id) > 4) {
+    res = Read_Header(id);
+    if (id->g_frame_header.layer == 3) {
+      if(res == PDMP3_OK || res == PDMP3_NEW_FORMAT) break;
+    }
+    if (++mark == INBUF_SIZE) {
+      mark = 0;
+    }
+    id->istart = mark;
+    id->processed = pos;
+    if (++cnt > (2*576)) return(PDMP3_ERR); /* more than one frame and still no header */
+  }
+  return res;
 }
 
 /**Description: reads main data for layer 3 from main_data bit reservoir.
@@ -2424,11 +2446,6 @@ int pdmp3_read(pdmp3_handle *id,unsigned char *outmemory,size_t outsize,size_t *
           unsigned mark = id->istart;
 
           res = Read_Frame(id);
-          if(id->new_header == 1) {
-            id->new_header = -1;
-            return(PDMP3_NEW_FORMAT);
-          }
-
           if(res == PDMP3_OK || res == PDMP3_NEW_FORMAT) {
             size_t batch;
 
@@ -2449,6 +2466,9 @@ int pdmp3_read(pdmp3_handle *id,unsigned char *outmemory,size_t outsize,size_t *
           break;
         }
       } /* outsize */
+      if(id->new_header == 1) {
+        res = PDMP3_NEW_FORMAT;
+      }
       return(res);
     }
     else if(outsize < (2*576)) {
@@ -2484,18 +2504,14 @@ int pdmp3_decode(pdmp3_handle *id,const unsigned char *in,size_t insize,unsigned
       *done = avail;
     }
     else if(Get_Filepos(id) == 0) {
-      if (Get_Inbuf_Filled(id) > 4) {
-        res = Read_Header(id);
-        id->processed = 0;
-        id->istart = 0;
-      }
-      else {
-        res = PDMP3_NEED_MORE;
-      }
+      unsigned pos = id->processed;
+      unsigned mark = id->istart;
+      res = Search_Header(id);
+      id->processed = pos;
+      id->istart = mark;
 
       if(id->new_header == 1) {
-        id->new_header = -1;
-        res = PDMP3_NEW_FORMAT;
+          res = PDMP3_NEW_FORMAT;
       }
     }
   }
@@ -2511,6 +2527,7 @@ int pdmp3_getformat(pdmp3_handle *id,long *rate,int *channels,int *encoding){
     *encoding = PDMP3_ENC_SIGNED_16;
     *rate = g_sampling_frequency[id->g_frame_header.sampling_frequency];
     *channels = (id->g_frame_header.mode == mpeg1_mode_single_channel ? 1 : 2);
+    id->new_header = -1;
     return(PDMP3_OK);
   }
   return(PDMP3_ERR);
