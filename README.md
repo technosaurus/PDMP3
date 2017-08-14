@@ -6,15 +6,31 @@ Public domain mp3 decoder
 This project is a fork of the mp3 decoder written by Krister Lagerstrom as part of a master's thesis. This version implements a subset op the libmpg123 API which should be a 100% compatible replacement. If it's not that is considered a bug. In theory more libmpg123 compatible functions could be implemented quite easily.
 
 Available functions for the streaming API are:
+`
+pdmp3_handle *pdmp3_new(const char *decoder,int *error);
+void pdmp3_delete(pdmp3_handle *id);
+int pdmp3_open_feed(pdmp3_handle *id);
+int pdmp3_feed(pdmp3_handle *id,const unsigned char *in,size_t size);
+int pdmp3_read(pdmp3_handle *id,unsigned char *outmemory,size_t outsize,size_t *done);
+int pdmp3_decode(pdmp3_handle *id,const unsigned char *in,size_t insize,unsigned char *out,size_t outsize,size_t *done);
+int pdmp3_getformat(pdmp3_handle *id,long *rate,int *channels,int *encoding);
+int pdmp3_info(pdmp3_handle *id,struct pdpm3_frameinfo *info);
+`
 
-pdmp3_handle * pdmp3_new(const char *decoder,int *error);
-void pdmp3_delete(pdmp3_handle * id);
-int pdmp3_open_feed(pdmp3_handle * id);
-int pdmp3_feed(pdmp3_handle * id,const unsigned char * in,size_t size);
-int pdmp3_read(pdmp3_handle * id,unsigned char * outmemory,size_t outsize,size_t * done);
-int pdmp3_decode(pdmp3_handle * id,const unsigned char * in,size_t insize,unsigned char * out,size_t outsize,size_t * done);
-int pdmp3_getformat(pdmp3_handle * id,long * rate,int * channels,int * encoding);
+The following code allows approximating the duration of the current stream if
+the length of the stream is known:
 
+`
+struct pdpm3_frameinfo info;
+int enc, channels;
+long rate;
+
+if (pdmp3_getformat(handle->id, &rate, &channels, &enc) == MPG123_OK) {
+  if (pdmp3_info(handle->id,&info) == MPG123_OK) {
+    double no_samples = (double)rate/(info.bitrate/8.0)*file_size_bytes;
+  }
+}
+`
 
 TODO
 ----
