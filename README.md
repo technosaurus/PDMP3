@@ -26,6 +26,7 @@ int enc, channels;
 long rate;
 
 if (pdmp3_getformat(handle->id, &rate, &channels, &enc) == MPG123_OK) {
+  struct pdpm3_frameinfo info;
   if (pdmp3_info(handle->id,&info) == MPG123_OK) {
     double no_samples = (double)rate/(info.bitrate/8.0)*file_size_bytes;
   }

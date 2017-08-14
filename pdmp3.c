@@ -34,6 +34,7 @@
 #include <math.h>
 #include <fcntl.h>
 #include <sys/ioctl.h>
+#include <sys/stat.h>
 #ifdef OUTPUT_SOUND
 #include <sys/soundcard.h>
 #endif
@@ -1080,7 +1081,7 @@ static unsigned Get_Inbuf_Filled(pdmp3_handle *id) {
 }
 
 static unsigned Get_Inbuf_Free(pdmp3_handle *id) {
-  return  (id->iend<id->istart)?(id->istart-id->iend):(INBUF_SIZE-id->iend+id->istart);
+  return (id->iend<id->istart)?(id->istart-id->iend):(INBUF_SIZE-id->iend+id->istart);
 }
 
 
@@ -2300,7 +2301,7 @@ static void audio_write(pdmp3_handle *id,const char *audio_name,const char *file
   }
 
   if(curr_sample_rate != sample_rate) {
-    curr_sample_rate = sample_rate;
+    dsp_speed = curr_sample_rate = sample_rate;
     if(ioctl(audio,SNDCTL_DSP_SPEED,&dsp_speed) == -1)
       Error("Unable to set audio speed\n",-1);
   }
@@ -2607,15 +2608,24 @@ void pdmp3(char * const *mp3s){
 
     pdmp3_open_feed(id);
     while((res = pdmp3_read(id,out,INBUF_SIZE,&done)) != PDMP3_ERR){
-      audio_write(id,audio_name,filename,out,done);
       if(res == PDMP3_OK || res == PDMP3_NEW_FORMAT) {
-#ifdef DEBUG
+        audio_write(id,audio_name,filename,out,done);
+
+#ifndef NDEBUG
         if(res == PDMP3_NEW_FORMAT) {
           int enc,channels;
           long rate;
-
-          pdmp3_getformat(id,&rate,&channels,&enc);
-          DBG("sample rate: %li Hz, no. channels: %i",rate,channels);
+          if (pdmp3_getformat(id, &rate, &channels, &enc) == PDMP3_OK) {
+            struct stat st;
+            if (stat(filename, &st) == 0) {
+              struct pdpm3_frameinfo info;
+              if (pdmp3_info(id,&info) == PDMP3_OK) {
+                float duration = (float)st.st_size/(info.bitrate/8.0f);
+                DBG("sample rate: %li Hz, no. channels: %i, duration: %.1f sec.",
+                     rate,channels,duration);
+              }
+            }
+          }
         }
 #endif
       }
