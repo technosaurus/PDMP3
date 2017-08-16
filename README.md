@@ -14,7 +14,11 @@ int pdmp3_feed(pdmp3_handle *id,const unsigned char *in,size_t size);
 int pdmp3_read(pdmp3_handle *id,unsigned char *outmemory,size_t outsize,size_t *done);
 int pdmp3_decode(pdmp3_handle *id,const unsigned char *in,size_t insize,unsigned char *out,size_t outsize,size_t *done);
 int pdmp3_getformat(pdmp3_handle *id,long *rate,int *channels,int *encoding);
+
 int pdmp3_info(pdmp3_handle *id,struct pdpm3_frameinfo *info);
+
+int pdmp3_meta_check(pdmp3_handle *id);
+int pdmp3_id3(pdmp3_handle *id,pdmp3_id3v1 **v1,pdmp3_id3v2 **v2);
 `
 
 The following code allows approximating the duration of the current stream if

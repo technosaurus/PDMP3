@@ -121,6 +121,59 @@ t_sf_band_indices;
 
 #define PDMP3_ENC_SIGNED_16 (0x080|0x040|0x10)
 
+typedef struct
+{
+  char *p;
+  size_t size;
+  size_t fill;
+} pdmp3_string;
+
+typedef struct
+{
+  char lang[3];
+  char id[4];
+  pdmp3_string description;
+  pdmp3_string text;
+} pdmp3_text;
+
+typedef struct
+{
+  pdmp3_string description;
+  pdmp3_string mime_type;
+  size_t size;
+  unsigned char *data;
+} pdmp3_picture;
+
+typedef struct
+{
+  char tag[3];
+  char title[30];
+  char artist[30];
+  char album[30];
+  char year[4];
+  char comment[30];
+  unsigned char genre;
+} pdmp3_id3v1;
+
+typedef struct
+{
+  unsigned char version;
+  pdmp3_string *title;
+  pdmp3_string *artist;
+  pdmp3_string *album;
+  pdmp3_string *year;
+  pdmp3_string *genre;
+  pdmp3_string *comment;
+  pdmp3_text *comment_list;
+  size_t comments;
+  pdmp3_text text[32];
+  size_t texts;
+  pdmp3_text *extra;
+  size_t extras;
+  pdmp3_picture *picture;
+  size_t pictures;
+} pdmp3_id3v2;
+
 #define INBUF_SIZE      (4*4096)
 typedef struct
 {
@@ -144,6 +197,10 @@ typedef struct
   unsigned *side_info_ptr;  /* Pointer into the reservoir */
   unsigned side_info_idx;  /* Index into the current byte(0-7) */
 
+  pdmp3_id3v2 *id3v2;
+  unsigned id3v2_size;
+  char id3v2_processing;
+  char id3v2_flags;
   char new_header;
 }
 pdmp3_handle;
@@ -171,6 +228,8 @@ int pdmp3_read(pdmp3_handle *id,unsigned char *outmemory,size_t outsize,size_t *
 int pdmp3_decode(pdmp3_handle *id,const unsigned char *in,size_t insize,unsigned char *out,size_t outsize,size_t *done);
 int pdmp3_getformat(pdmp3_handle *id,long *rate,int *channels,int *encoding);
 int pdmp3_info(pdmp3_handle *id,struct pdpm3_frameinfo *info);
+int pdmp3_id3(pdmp3_handle *id,pdmp3_id3v1 **v1,pdmp3_id3v2 **v2);
+int pdmp3_meta_check(pdmp3_handle *id);
 /** end of the subset of a libmpg123 compatible streaming API */
 
 void pdmp3(char * const *mp3s);
@@ -1260,6 +1319,160 @@ static int Read_Frame(pdmp3_handle *id){
   return(PDMP3_OK);
 }
 
+static void Free_ID3v2_string(pdmp3_string *str) {
+  if (str) {
+    str->size = 0;
+    str->fill = 0;
+    free(str->p);
+  }
+}
+
+static void Free_ID3v2_text(pdmp3_text *text) {
+  if (text) {
+    Free_ID3v2_string(&text->description);
+    Free_ID3v2_string(&text->text);
+  }
+}
+
+static void Free_ID3v2_picture(pdmp3_picture *pic) {
+  if (pic) {
+    Free_ID3v2_string(&pic->description);
+    Free_ID3v2_string(&pic->mime_type);
+    free(pic->data);
+  }
+}
+
+static void Free_ID3v2(pdmp3_id3v2 *v2) {
+  if (v2) {
+    unsigned i;
+    v2->title = NULL;
+    v2->artist = NULL;
+    v2->album = NULL;
+    v2->year = NULL;
+    v2->genre = NULL;
+    for (i=0; i<v2->comments; ++i)
+      Free_ID3v2_text(&v2->comment_list[i]);
+    v2->comments = 0;
+    free(v2->comment_list);
+    for (i=0; i<v2->texts; ++i)
+      Free_ID3v2_text(&v2->text[i]);
+    v2->texts = 0;
+    free(v2->text);
+    for (i=0; i<v2->extras; ++i)
+      Free_ID3v2_text(&v2->extra[i]);
+    v2->extras = 0;
+    free(v2->extra);
+    for (i=0; i<v2->pictures; ++i)
+      Free_ID3v2_picture(&v2->picture[i]);
+    v2->pictures =0;
+    free(v2->picture);
+    free(v2);
+  }
+}
+
+static int Read_ID3v2_Tag(pdmp3_handle *id) {
+  unsigned b1, b2, b3, b4, size, flags, texts;
+  unsigned pos = id->processed;
+  unsigned mark = id->istart;
+  int i, res = PDMP3_ERR;
+
+  if (Get_Inbuf_Free(id) < 11)
+    return(PDMP3_NEED_MORE);
+
+  texts = id->id3v2->texts;
+  for (i=0; i<4; ++i) {
+    id->id3v2->text[texts].id[i] = Get_Byte(id);
+  }
+
+  b1 = Get_Byte(id);
+  b2 = Get_Byte(id);
+  b3 = Get_Byte(id);
+  b4 = Get_Byte(id);
+  size =(b1 << 24) |(b2 << 16) |(b3 << 8) |(b4 << 0);
+
+  b1 = Get_Byte(id);
+  b2 = Get_Byte(id);
+  flags =(b1 << 8) |(b2 << 0);
+
+  if (size && (Get_Inbuf_Free(id) >= size) && (texts < 32)) {
+    id->id3v2->text[texts].text.p = malloc(size);
+    if (id->id3v2->text[texts].text.p) {
+      int encoding;
+
+      id->id3v2->text[texts].text.size = size;
+      id->id3v2->text[texts].text.fill = size;
+
+      encoding = Get_Byte(id);
+      for (i=0; i<size-1; ++i) {
+        id->id3v2->text[texts].text.p[i] = Get_Byte(id);
+      }
+      id->id3v2->text[texts].text.p[i] = 0;
+
+      if (!strncmp(id->id3v2->text[texts].id, "TIT2", 4)) {
+        id->id3v2->title = &id->id3v2->text[texts].text;
+      } else if (!strncmp(id->id3v2->text[texts].id, "TOPE", 4)) {
+        id->id3v2->artist = &id->id3v2->text[texts].text;
+      } else if (!strncmp(id->id3v2->text[texts].id, "TALB", 4)) {
+        id->id3v2->album = &id->id3v2->text[texts].text;
+      } else if (!strncmp(id->id3v2->text[texts].id, "TYER", 4)) {
+        id->id3v2->year = &id->id3v2->text[texts].text;
+      } else if (!strncmp(id->id3v2->text[texts].id, "COMM", 4)) {
+        id->id3v2->comment = &id->id3v2->text[texts].text;
+      }
+
+      ++id->id3v2->texts;
+      res = PDMP3_OK;
+    }
+  }
+  else if (Get_Inbuf_Free(id) < size) {
+    id->processed = pos;
+    id->istart = mark;
+    return(PDMP3_NEED_MORE);
+  }
+  else if (!size) {
+      id->id3v2_processing = 0;
+  }
+  return(res);
+}
+
+static int Read_ID3v2_Header(pdmp3_handle *id) {
+  int res=PDMP3_ERR;
+
+  if (Get_Filepos(id) == 3) {
+    unsigned b1, b2, b3, b4, size;
+
+    if (Get_Inbuf_Free(id) < 8)
+      return(PDMP3_NEED_MORE);
+
+    if (!id->id3v2_processing)
+      Free_ID3v2(id->id3v2);
+    b1 = Get_Byte(id);	// ID3v2 version number
+    b2 = Get_Byte(id);	// ID3v2 revision number
+    if (b1 > 4 || b2 == 0xFF)
+      return(PDMP3_ERR);
+    id->id3v2_flags = Get_Byte(id);	// ID3v2 flags
+    if (id->id3v2_flags && 0xE0)
+      return(PDMP3_ERR);
+    b1 = Get_Byte(id);
+    b2 = Get_Byte(id);
+    b3 = Get_Byte(id);
+    b4 = Get_Byte(id);
+    if (b1 & 0x80 || b1 & 0x80 || b2 & 0x80 || b3 & 0x80)
+      return(PDMP3_ERR);
+    id->id3v2_size =(b1 << 21) |(b2 << 14) |(b3 << 7) |(b4 << 0);
+    if (id->id3v2_flags & 0x40) {	// Extended header
+      return(PDMP3_ERR);		// Not implemented
+    }
+    id->id3v2 = calloc(1,sizeof(pdmp3_id3v2));
+  }
+
+  if (id->id3v2) {
+    while ((res = Read_ID3v2_Tag(id)) == PDMP3_OK);
+  }
+  return(res);
+
+}
+
 /**Description: Scans bitstream for syncword until we find it or EOF. The
    syncword must be byte-aligned. It then reads and parses audio header.
 * Parameters: Stream handle.
@@ -1272,6 +1485,15 @@ static int Read_Header(pdmp3_handle *id) {
   b1 = Get_Byte(id);
   b2 = Get_Byte(id);
   b3 = Get_Byte(id);
+
+  if (id->id3v2_processing) {
+    if(!id->id3v2 && (b1 != 'I' || b2 != 'D' || b3 != '3')) {
+      id->id3v2_processing = 0;
+}
+    else
+      return Read_ID3v2_Header(id);
+  }
+
   b4 = Get_Byte(id);
   /* If we got an End Of File condition we're done */
   if((b1==C_EOF)||(b2==C_EOF)||(b3==C_EOF)||(b4==C_EOF))
@@ -2386,6 +2608,8 @@ void pdmp3_delete(pdmp3_handle *id){
 * Author: Erik Hofman(erik@ehofman.com) **/
 int pdmp3_open_feed(pdmp3_handle *id){
   if(id) {
+    id->id3v2 = NULL;
+    id->id3v2_processing = 1;
     id->ostart = 0;
     id->istart = 0;
     id->iend = 0;
@@ -2529,7 +2753,9 @@ int pdmp3_decode(pdmp3_handle *id,const unsigned char *in,size_t insize,unsigned
       id->processed = pos;
       id->istart = mark;
 
-      if(id->new_header == 1) {
+      if (id->id3v2_processing) {
+         res = PDMP3_NEED_MORE;
+      } else if(id->new_header == 1) {
           res = PDMP3_NEW_FORMAT;
       }
     }
@@ -2575,6 +2801,25 @@ int pdmp3_info(pdmp3_handle *id,struct pdpm3_frameinfo *info)
     if (id->g_frame_header.private_bit) info->flags |= 0x4;
     if (!id->g_frame_header.original_or_copy) info->flags |= 0x8;
 
+    return(PDMP3_OK);
+  }
+  return(PDMP3_ERR);
+}
+
+int pdmp3_meta_check(pdmp3_handle *id)
+{
+  if(id && id->id3v2 && !id->id3v2_processing){
+    return(0x3);
+  }
+  return(PDMP3_OK);
+}
+
+int pdmp3_id3(pdmp3_handle *id,pdmp3_id3v1 **v1,pdmp3_id3v2 **v2)
+{
+  if (v1) *v1 = NULL;
+  if (v2) *v2 = NULL;
+  if(id && id->id3v2){
+    *v2 = id->id3v2;
     return(PDMP3_OK);
   }
   return(PDMP3_ERR);
