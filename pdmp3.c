@@ -35,6 +35,11 @@
 #include <fcntl.h>
 #include <sys/ioctl.h>
 #include <sys/stat.h>
+#ifdef _WIN32
+#include <Windows.h>
+#else
+#include <iconv.h>
+#endif
 #ifdef OUTPUT_SOUND
 #include <sys/soundcard.h>
 #endif
@@ -1395,22 +1400,41 @@ static int Read_ID3v2_Tag(pdmp3_handle *id) {
   flags =(b1 << 8) |(b2 << 0);
 
   if (size && (Get_Inbuf_Free(id) >= size) && (texts < 32)) {
-    id->id3v2->text[texts].text.p = malloc(size);
+    size_t dstlen = size*2;
+    id->id3v2->text[texts].text.p = malloc(dstlen);
     if (id->id3v2->text[texts].text.p) {
       int encoding;
 
-      id->id3v2->text[texts].text.size = size;
-      id->id3v2->text[texts].text.fill = size;
+      id->id3v2->text[texts].text.size = dstlen;
+      id->id3v2->text[texts].text.fill = size--;
 
       encoding = Get_Byte(id);
-      for (i=0; i<size-1; ++i) {
-        id->id3v2->text[texts].text.p[i] = Get_Byte(id);
+      if (encoding == 0x00 || encoding == 0x03) { // ISO-8859-1 || UTF-8
+        for (i=0; i<size; ++i) {
+          id->id3v2->text[texts].text.p[i] = Get_Byte(id);
+        }
+      } else if (encoding == 0x01 || encoding == 0x02) { // UTF-16
+        size_t srclen = 2*size;
+        char *src = alloca(srclen);
+        if (src) {
+          char *dst = id->id3v2->text[texts].text.p;
+          for (i=0; i<srclen; ++i) {
+            src[i] = Get_Byte(id);
+          }
+#ifdef _WIN32
+          WideCharToMultiByte(CP_UTF8, 0, str, srclen, dst, dstlen, NULL, NULL);
+#else
+          iconv_t conv = iconv_open("UTF-8", "UTF-16");
+          iconv(conv, &src, &srclen, &dst, &dstlen);
+          iconv_close(conv);
+#endif
+        }
       }
       id->id3v2->text[texts].text.p[i] = 0;
 
       if (!strncmp(id->id3v2->text[texts].id, "TIT2", 4)) {
         id->id3v2->title = &id->id3v2->text[texts].text;
-      } else if (!strncmp(id->id3v2->text[texts].id, "TOPE", 4)) {
+      } else if (!strncmp(id->id3v2->text[texts].id, "TPE1", 4)) {
         id->id3v2->artist = &id->id3v2->text[texts].text;
       } else if (!strncmp(id->id3v2->text[texts].id, "TALB", 4)) {
         id->id3v2->album = &id->id3v2->text[texts].text;
