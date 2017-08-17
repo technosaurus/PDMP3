@@ -171,12 +171,13 @@ typedef struct
   pdmp3_string *comment;
   pdmp3_text *comment_list;
   size_t comments;
-  pdmp3_text text[32];
+  pdmp3_text *text;
   size_t texts;
   pdmp3_text *extra;
   size_t extras;
   pdmp3_picture *picture;
   size_t pictures;
+  pdmp3_text _text[32];
 } pdmp3_id3v2;
 
 #define INBUF_SIZE      (4*4096)
@@ -1376,7 +1377,7 @@ static void Free_ID3v2(pdmp3_id3v2 *v2) {
 }
 
 static int Read_ID3v2_Tag(pdmp3_handle *id) {
-  unsigned b1, b2, b3, b4, size, flags, texts;
+  unsigned b1, b2, b3, b4, size, texts; // flags
   unsigned pos = id->processed;
   unsigned mark = id->istart;
   int i, res = PDMP3_ERR;
@@ -1397,7 +1398,7 @@ static int Read_ID3v2_Tag(pdmp3_handle *id) {
 
   b1 = Get_Byte(id);
   b2 = Get_Byte(id);
-  flags =(b1 << 8) |(b2 << 0);
+//flags =(b1 << 8) |(b2 << 0);
 
   if (size && (Get_Inbuf_Free(id) >= size) && (texts < 32)) {
     unsigned char encoding = Get_Byte(id);
@@ -1445,6 +1446,7 @@ static int Read_ID3v2_Tag(pdmp3_handle *id) {
       } /* src != NULL */
     }
 
+
     if (id->id3v2->text[texts].text.p) {
       if (!strncmp(id->id3v2->text[texts].id, "TIT2", 4)) {
         id->id3v2->title = &id->id3v2->text[texts].text;
@@ -1477,7 +1479,7 @@ static int Read_ID3v2_Header(pdmp3_handle *id) {
   int res=PDMP3_ERR;
 
   if (Get_Filepos(id) == 3) {
-    unsigned b1, b2, b3, b4, size;
+    unsigned b1, b2, b3, b4;
 
     if (Get_Inbuf_Free(id) < 8)
       return(PDMP3_NEED_MORE);
@@ -1500,6 +1502,8 @@ static int Read_ID3v2_Header(pdmp3_handle *id) {
       return(PDMP3_ERR);		// special features not implemented
     }
     id->id3v2 = calloc(1,sizeof(pdmp3_id3v2));
+    if (id->id3v2)
+      id->id3v2->text = id->id3v2->_text;
   }
 
   if (id->id3v2) {
