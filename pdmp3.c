@@ -1400,38 +1400,52 @@ static int Read_ID3v2_Tag(pdmp3_handle *id) {
   flags =(b1 << 8) |(b2 << 0);
 
   if (size && (Get_Inbuf_Free(id) >= size) && (texts < 32)) {
-    size_t dstlen = size*2;
-    id->id3v2->text[texts].text.p = malloc(dstlen);
-    if (id->id3v2->text[texts].text.p) {
-      int encoding;
+    unsigned char encoding = Get_Byte(id);
 
-      id->id3v2->text[texts].text.size = dstlen;
-      id->id3v2->text[texts].text.fill = size--;
-
-      encoding = Get_Byte(id);
-      if (encoding == 0x00 || encoding == 0x03) { // ISO-8859-1 || UTF-8
-        for (i=0; i<size; ++i) {
+    if (encoding == 0x00 || encoding == 0x03) { // ISO-8859-1 || UTF-8
+      id->id3v2->text[texts].text.p = malloc(size);
+      if (id->id3v2->text[texts].text.p) {
+        for (i=0; i<size-1; ++i) {
           id->id3v2->text[texts].text.p[i] = Get_Byte(id);
         }
-      } else if (encoding == 0x01 || encoding == 0x02) { // UTF-16
-        size_t srclen = 2*size;
-        char *src = alloca(srclen);
-        if (src) {
-          char *dst = id->id3v2->text[texts].text.p;
-          for (i=0; i<srclen; ++i) {
-            src[i] = Get_Byte(id);
-          }
+        id->id3v2->text[texts].text.p[i] = 0;
+        id->id3v2->text[texts].text.size = size;
+        id->id3v2->text[texts].text.fill = size;
+      }
+    } else if (encoding == 0x01 || encoding == 0x02) { // UTF-16
+      size_t srclen = 2*size;
+      char *src = alloca(srclen);
+      if (src) {
+        size_t dstlen = 2*size;
+        char *dst;
+
+        for (i=0; i<srclen-1; ++i) {
+          src[i] = Get_Byte(id);
+        }
+
 #ifdef _WIN32
-          WideCharToMultiByte(CP_UTF8, 0, str, srclen, dst, dstlen, NULL, NULL);
+        dstlen = WideCharToMultiByte(CP_UTF8, 0, src, srclen, 0,0,NULL,NULL);
+        dst = id->id3v2->text[texts].text.p = malloc(dstlen);
+        if (dst) {
+          WideCharToMultiByte(CP_UTF8, 0, src, srclen, dst, dstlen, NULL, NULL);
+          id->id3v2->text[texts].text.size = dstlen;
+          id->id3v2->text[texts].text.fill = dstlen;
+          dst[dstlen] = 0;
+        }
 #else
+        dst = id->id3v2->text[texts].text.p = malloc(dstlen);
+        if (dst) {
           iconv_t conv = iconv_open("UTF-8", "UTF-16");
           iconv(conv, &src, &srclen, &dst, &dstlen);
           iconv_close(conv);
-#endif
+          id->id3v2->text[texts].text.size = 2*size;
+          id->id3v2->text[texts].text.fill = 2*size-dstlen;
         }
-      }
-      id->id3v2->text[texts].text.p[i] = 0;
+#endif
+      } /* src != NULL */
+    }
 
+    if (id->id3v2->text[texts].text.p) {
       if (!strncmp(id->id3v2->text[texts].id, "TIT2", 4)) {
         id->id3v2->title = &id->id3v2->text[texts].text;
       } else if (!strncmp(id->id3v2->text[texts].id, "TPE1", 4)) {
@@ -1472,11 +1486,9 @@ static int Read_ID3v2_Header(pdmp3_handle *id) {
       Free_ID3v2(id->id3v2);
     b1 = Get_Byte(id);	// ID3v2 version number
     b2 = Get_Byte(id);	// ID3v2 revision number
-    if (b1 > 4 || b2 == 0xFF)
+    if ((b1 != 3 && b1 != 4) || b2 == 0xFF)
       return(PDMP3_ERR);
     id->id3v2_flags = Get_Byte(id);	// ID3v2 flags
-    if (id->id3v2_flags && 0xE0)
-      return(PDMP3_ERR);
     b1 = Get_Byte(id);
     b2 = Get_Byte(id);
     b3 = Get_Byte(id);
@@ -1484,8 +1496,8 @@ static int Read_ID3v2_Header(pdmp3_handle *id) {
     if (b1 & 0x80 || b1 & 0x80 || b2 & 0x80 || b3 & 0x80)
       return(PDMP3_ERR);
     id->id3v2_size =(b1 << 21) |(b2 << 14) |(b3 << 7) |(b4 << 0);
-    if (id->id3v2_flags & 0x40) {	// Extended header
-      return(PDMP3_ERR);		// Not implemented
+    if (id->id3v2_flags != 0x00) {
+      return(PDMP3_ERR);		// special features not implemented
     }
     id->id3v2 = calloc(1,sizeof(pdmp3_id3v2));
   }
@@ -1511,9 +1523,8 @@ static int Read_Header(pdmp3_handle *id) {
   b3 = Get_Byte(id);
 
   if (id->id3v2_processing) {
-    if(!id->id3v2 && (b1 != 'I' || b2 != 'D' || b3 != '3')) {
+    if(!id->id3v2 && (b1 != 'I' || b2 != 'D' || b3 != '3'))
       id->id3v2_processing = 0;
-}
     else
       return Read_ID3v2_Header(id);
   }
