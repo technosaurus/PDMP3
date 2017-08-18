@@ -124,6 +124,7 @@ t_sf_band_indices;
 #define PDMP3_NEW_FORMAT -11
 #define PDMP3_NO_SPACE     7
 
+#define PDMP3_ID3        0x03
 #define PDMP3_ENC_SIGNED_16 (0x080|0x040|0x10)
 
 typedef struct
@@ -1297,8 +1298,9 @@ static int Read_CRC(pdmp3_handle *id){
 * Return value: PDMP3_OK if a frame is successfully read,PDMP3_ERR otherwise.
 * Author: Krister Lagerström(krister@kmlager.com) **/
 static int Read_Frame(pdmp3_handle *id){
+  int res;
   /* Try to find the next frame in the bitstream and decode it */
-  if(Search_Header(id) != PDMP3_OK) return(PDMP3_ERR);
+  if((res = Search_Header(id)) != PDMP3_OK) return(res);
 #ifdef DEBUG
   { static int framenum = 0;
     printf("\nFrame %d\n",framenum++);
@@ -1326,7 +1328,7 @@ static int Read_Frame(pdmp3_handle *id){
 }
 
 static void Free_ID3v2_string(pdmp3_string *str) {
-  if (str) {
+  if(str) {
     str->size = 0;
     str->fill = 0;
     free(str->p);
@@ -1334,14 +1336,14 @@ static void Free_ID3v2_string(pdmp3_string *str) {
 }
 
 static void Free_ID3v2_text(pdmp3_text *text) {
-  if (text) {
+  if(text) {
     Free_ID3v2_string(&text->description);
     Free_ID3v2_string(&text->text);
   }
 }
 
 static void Free_ID3v2_picture(pdmp3_picture *pic) {
-  if (pic) {
+  if(pic) {
     Free_ID3v2_string(&pic->description);
     Free_ID3v2_string(&pic->mime_type);
     free(pic->data);
@@ -1349,7 +1351,7 @@ static void Free_ID3v2_picture(pdmp3_picture *pic) {
 }
 
 static void Free_ID3v2(pdmp3_id3v2 *v2) {
-  if (v2) {
+  if(v2) {
     unsigned i;
     v2->title = NULL;
     v2->artist = NULL;
@@ -1381,8 +1383,9 @@ static int Read_ID3v2_Tag(pdmp3_handle *id) {
   unsigned pos = id->processed;
   unsigned mark = id->istart;
   int i, res = PDMP3_ERR;
+  unsigned filled;
 
-  if (Get_Inbuf_Free(id) < 11)
+  if(Get_Inbuf_Filled(id) < 11)
     return(PDMP3_NEED_MORE);
 
   texts = id->id3v2->texts;
@@ -1400,77 +1403,93 @@ static int Read_ID3v2_Tag(pdmp3_handle *id) {
   b2 = Get_Byte(id);
 //flags =(b1 << 8) |(b2 << 0);
 
-  if (size && (Get_Inbuf_Free(id) >= size) && (texts < 32)) {
-    unsigned char encoding = Get_Byte(id);
-
-    if (encoding == 0x00 || encoding == 0x03) { // ISO-8859-1 || UTF-8
-      id->id3v2->text[texts].text.p = malloc(size);
-      if (id->id3v2->text[texts].text.p) {
-        for (i=0; i<size-1; ++i) {
-          id->id3v2->text[texts].text.p[i] = Get_Byte(id);
-        }
-        id->id3v2->text[texts].text.p[i] = 0;
-        id->id3v2->text[texts].text.size = size;
-        id->id3v2->text[texts].text.fill = size;
-      }
-    } else if (encoding == 0x01 || encoding == 0x02) { // UTF-16
-      size_t srclen = 2*size;
-      char *src = alloca(srclen);
-      if (src) {
-        size_t dstlen = 2*size;
-        char *dst;
-
-        for (i=0; i<srclen-1; ++i) {
-          src[i] = Get_Byte(id);
-        }
-
-#ifdef _WIN32
-        dstlen = WideCharToMultiByte(CP_UTF8, 0, src, srclen, 0,0,NULL,NULL);
-        dst = id->id3v2->text[texts].text.p = malloc(dstlen);
-        if (dst) {
-          WideCharToMultiByte(CP_UTF8, 0, src, srclen, dst, dstlen, NULL, NULL);
-          id->id3v2->text[texts].text.size = dstlen;
-          id->id3v2->text[texts].text.fill = dstlen;
-          dst[dstlen] = 0;
-        }
-#else
-        dst = id->id3v2->text[texts].text.p = malloc(dstlen);
-        if (dst) {
-          iconv_t conv = iconv_open("UTF-8", "UTF-16");
-          iconv(conv, &src, &srclen, &dst, &dstlen);
-          iconv_close(conv);
-          id->id3v2->text[texts].text.size = 2*size;
-          id->id3v2->text[texts].text.fill = 2*size-dstlen;
-        }
-#endif
-      } /* src != NULL */
-    }
-
-
-    if (id->id3v2->text[texts].text.p) {
-      if (!strncmp(id->id3v2->text[texts].id, "TIT2", 4)) {
-        id->id3v2->title = &id->id3v2->text[texts].text;
-      } else if (!strncmp(id->id3v2->text[texts].id, "TPE1", 4)) {
-        id->id3v2->artist = &id->id3v2->text[texts].text;
-      } else if (!strncmp(id->id3v2->text[texts].id, "TALB", 4)) {
-        id->id3v2->album = &id->id3v2->text[texts].text;
-      } else if (!strncmp(id->id3v2->text[texts].id, "TYER", 4)) {
-        id->id3v2->year = &id->id3v2->text[texts].text;
-      } else if (!strncmp(id->id3v2->text[texts].id, "COMM", 4)) {
-        id->id3v2->comment = &id->id3v2->text[texts].text;
-      }
-
-      ++id->id3v2->texts;
-      res = PDMP3_OK;
-    }
-  }
-  else if (Get_Inbuf_Free(id) < size) {
+  filled = Get_Inbuf_Filled(id);
+  if(!size && (id->id3v2_size > filled)) {
     id->processed = pos;
     id->istart = mark;
     return(PDMP3_NEED_MORE);
   }
-  else if (!size) {
-      id->id3v2_processing = 0;
+  else if(size && (filled >= size) && (texts < 32)) {
+    if(!strncmp(id->id3v2->text[texts].id, "PRIV", 4)) { // unimplemented
+       for (i=0; i<size; ++i) Get_Byte(id);
+       id->id3v2_size -= (size+10);
+       return(PDMP3_OK);
+    }
+    else {
+      unsigned char encoding = Get_Byte(id);
+      if(encoding == 0x00 || encoding == 0x03) { // ISO-8859-1 || UTF-8
+        id->id3v2->text[texts].text.p = malloc(size);
+        if(id->id3v2->text[texts].text.p) {
+          for (i=0; i<size-1; ++i) {
+            id->id3v2->text[texts].text.p[i] = Get_Byte(id);
+          }
+          id->id3v2->text[texts].text.p[i] = 0;
+          id->id3v2->text[texts].text.size = size;
+          id->id3v2->text[texts].text.fill = size;
+        }
+        id->id3v2_size -= (size+10);
+      } else if(encoding == 0x01 || encoding == 0x02) { // UTF-16
+        size_t srclen = 2*size;
+        char *src = alloca(srclen);
+        if(src) {
+          size_t dstlen = 2*size;
+          char *dst;
+
+          for (i=0; i<srclen-1; ++i) {
+            src[i] = Get_Byte(id);
+          }
+
+#ifdef _WIN32
+          dstlen = WideCharToMultiByte(CP_UTF8, 0, src, srclen, 0,0,NULL,NULL);
+          dst = id->id3v2->text[texts].text.p = malloc(dstlen);
+          if(dst) {
+            WideCharToMultiByte(CP_UTF8, 0, src, srclen, dst, dstlen, NULL, NULL);
+            id->id3v2->text[texts].text.size = dstlen;
+            id->id3v2->text[texts].text.fill = dstlen;
+            dst[dstlen] = 0;
+          }
+#else
+          dst = id->id3v2->text[texts].text.p = malloc(dstlen);
+          if(dst) {
+            iconv_t conv = iconv_open("UTF-8", "UTF-16");
+            iconv(conv, &src, &srclen, &dst, &dstlen);
+            iconv_close(conv);
+            id->id3v2->text[texts].text.size = 2*size;
+            id->id3v2->text[texts].text.fill = 2*size-dstlen;
+          }
+#endif
+          id->id3v2_size -= (2*(size-1)+1+10);
+        } /* src != NULL */
+      }
+    }
+
+    if(id->id3v2->text[texts].text.p) {
+      if(!strncmp(id->id3v2->text[texts].id, "TIT2", 4)) {
+        id->id3v2->title = &id->id3v2->text[texts].text;
+      } else if(!strncmp(id->id3v2->text[texts].id, "TPE1", 4)) {
+        id->id3v2->artist = &id->id3v2->text[texts].text;
+      } else if(!strncmp(id->id3v2->text[texts].id, "TALB", 4)) {
+        id->id3v2->album = &id->id3v2->text[texts].text;
+      } else if(!strncmp(id->id3v2->text[texts].id, "TYER", 4)) {
+        id->id3v2->year = &id->id3v2->text[texts].text;
+      } else if(!strncmp(id->id3v2->text[texts].id, "COMM", 4)) {
+        id->id3v2->comment = &id->id3v2->text[texts].text;
+      }
+    }
+
+    ++id->id3v2->texts;
+    res = PDMP3_OK;
+  }
+  else if(filled < size) {
+    id->processed = pos;
+    id->istart = mark;
+    return(PDMP3_NEED_MORE);
+  }
+  else if(!size) {
+    for(i=0; i<id->id3v2_size; ++i) Get_Byte(id);
+    id->id3v2_processing = 0;
+    id->id3v2_size = 0;
+    res = PDMP3_OK;
   }
   return(res);
 }
@@ -1478,36 +1497,40 @@ static int Read_ID3v2_Tag(pdmp3_handle *id) {
 static int Read_ID3v2_Header(pdmp3_handle *id) {
   int res=PDMP3_ERR;
 
-  if (Get_Filepos(id) == 3) {
+  if(Get_Filepos(id) == 3) {
     unsigned b1, b2, b3, b4;
 
-    if (Get_Inbuf_Free(id) < 8)
+    if(Get_Inbuf_Filled(id) < 8)
       return(PDMP3_NEED_MORE);
 
-    if (!id->id3v2_processing)
+    if(!id->id3v2_processing)
       Free_ID3v2(id->id3v2);
     b1 = Get_Byte(id);	// ID3v2 version number
     b2 = Get_Byte(id);	// ID3v2 revision number
-    if ((b1 != 3 && b1 != 4) || b2 == 0xFF)
+    if((b1 != 3 && b1 != 4) || b2 == 0xFF) {
       return(PDMP3_ERR);
+    }
     id->id3v2_flags = Get_Byte(id);	// ID3v2 flags
     b1 = Get_Byte(id);
     b2 = Get_Byte(id);
     b3 = Get_Byte(id);
     b4 = Get_Byte(id);
-    if (b1 & 0x80 || b1 & 0x80 || b2 & 0x80 || b3 & 0x80)
+    if(b1 & 0x80 || b1 & 0x80 || b2 & 0x80 || b3 & 0x80) {
       return(PDMP3_ERR);
-    id->id3v2_size =(b1 << 21) |(b2 << 14) |(b3 << 7) |(b4 << 0);
-    if (id->id3v2_flags != 0x00) {
+    }
+    id->id3v2_size =(((unsigned)b1 << 21) |((unsigned)b2 << 14) |((unsigned)b3 << 7) |((unsigned)b4 << 0));
+    if(id->id3v2_flags != 0x00) {
       return(PDMP3_ERR);		// special features not implemented
     }
     id->id3v2 = calloc(1,sizeof(pdmp3_id3v2));
-    if (id->id3v2)
+    if(id->id3v2)
       id->id3v2->text = id->id3v2->_text;
   }
 
-  if (id->id3v2) {
-    while ((res = Read_ID3v2_Tag(id)) == PDMP3_OK);
+  if(id->id3v2) {
+    while ((res = Read_ID3v2_Tag(id)) == PDMP3_OK) {
+       if (!id->id3v2_processing) break;
+    }
   }
   return(res);
 
@@ -1526,7 +1549,7 @@ static int Read_Header(pdmp3_handle *id) {
   b2 = Get_Byte(id);
   b3 = Get_Byte(id);
 
-  if (id->id3v2_processing) {
+  if(id->id3v2_processing) {
     if(!id->id3v2 && (b1 != 'I' || b2 != 'D' || b3 != '3'))
       id->id3v2_processing = 0;
     else
@@ -1604,15 +1627,15 @@ static int Search_Header(pdmp3_handle *id) {
   int cnt = 0;
   while(Get_Inbuf_Filled(id) > 4) {
     res = Read_Header(id);
-    if (id->g_frame_header.layer == 3) {
-      if(res == PDMP3_OK || res == PDMP3_NEW_FORMAT) break;
-    }
-    if (++mark == INBUF_SIZE) {
+    if (res == PDMP3_NEED_MORE) break;
+    if((res == PDMP3_OK || res == PDMP3_NEW_FORMAT) &&
+       (id->g_frame_header.layer == 3)) break;
+    if(++mark == INBUF_SIZE) {
       mark = 0;
     }
     id->istart = mark;
     id->processed = pos;
-    if (++cnt > (2*576)) return(PDMP3_ERR); /* more than one frame and still no header */
+    if(++cnt > (2*576)) return(PDMP3_ERR); /* more than one frame and still no header */
   }
   return res;
 }
@@ -2593,7 +2616,7 @@ static void Convert_Frame_S16(pdmp3_handle *id,unsigned char *outbuf,size_t bufl
   framesz = sizeof(short)*nch;
 
   nsamps = buflen / framesz;
-  if (nsamps > (2*576 - id->ostart)) {
+  if(nsamps > (2*576 - id->ostart)) {
     nsamps = 2*576 - id->ostart;
   }
   *done = nsamps * framesz;
@@ -2611,14 +2634,14 @@ static void Convert_Frame_S16(pdmp3_handle *id,unsigned char *outbuf,size_t bufl
       s[2*q] = hi;
       s[2*q+1] = lo;
     }
-    if (++i == 576) {
+    if(++i == 576) {
        ++gr;
        i = 0;
     }
   }
 
   id->ostart += nsamps;
-  if (id->ostart == (2*576)) {
+  if(id->ostart == (2*576)) {
     id->ostart = 0;
   }
 }
@@ -2715,7 +2738,7 @@ int pdmp3_read(pdmp3_handle *id,unsigned char *outmemory,size_t outsize,size_t *
     if(outsize) {
       int res = PDMP3_ERR;
 
-      if (id->ostart) {
+      if(id->ostart) {
         Convert_Frame_S16(id,outmemory,outsize,done);
         outmemory += *done;
         outsize -= *done;
@@ -2723,7 +2746,7 @@ int pdmp3_read(pdmp3_handle *id,unsigned char *outmemory,size_t outsize,size_t *
       }
 
       while(outsize) {
-        if (Get_Inbuf_Filled(id) >= (2*576)) {
+        if(Get_Inbuf_Filled(id) >= (2*576)) {
           size_t pos = id->processed;
           unsigned mark = id->istart;
 
@@ -2792,7 +2815,7 @@ int pdmp3_decode(pdmp3_handle *id,const unsigned char *in,size_t insize,unsigned
       id->processed = pos;
       id->istart = mark;
 
-      if (id->id3v2_processing) {
+      if(id->id3v2_processing) {
          res = PDMP3_NEED_MORE;
       } else if(id->new_header == 1) {
           res = PDMP3_NEW_FORMAT;
@@ -2835,10 +2858,10 @@ int pdmp3_info(pdmp3_handle *id,struct pdpm3_frameinfo *info)
     info->vbr = 0;
 
     info->flags = 0;
-    if (id->g_frame_header.protection_bit) info->flags |= 0x1;
-    if (id->g_frame_header.copyright) info->flags |= 0x2;
-    if (id->g_frame_header.private_bit) info->flags |= 0x4;
-    if (!id->g_frame_header.original_or_copy) info->flags |= 0x8;
+    if(id->g_frame_header.protection_bit) info->flags |= 0x1;
+    if(id->g_frame_header.copyright) info->flags |= 0x2;
+    if(id->g_frame_header.private_bit) info->flags |= 0x4;
+    if(!id->g_frame_header.original_or_copy) info->flags |= 0x8;
 
     return(PDMP3_OK);
   }
@@ -2848,15 +2871,15 @@ int pdmp3_info(pdmp3_handle *id,struct pdpm3_frameinfo *info)
 int pdmp3_meta_check(pdmp3_handle *id)
 {
   if(id && id->id3v2 && !id->id3v2_processing){
-    return(0x3);
+    return(PDMP3_ID3);
   }
   return(PDMP3_OK);
 }
 
 int pdmp3_id3(pdmp3_handle *id,pdmp3_id3v1 **v1,pdmp3_id3v2 **v2)
 {
-  if (v1) *v1 = NULL;
-  if (v2) *v2 = NULL;
+  if(v1) *v1 = NULL;
+  if(v2) *v2 = NULL;
   if(id && id->id3v2){
     *v2 = id->id3v2;
     return(PDMP3_OK);
@@ -2892,22 +2915,33 @@ void pdmp3(char * const *mp3s){
 
     pdmp3_open_feed(id);
     while((res = pdmp3_read(id,out,INBUF_SIZE,&done)) != PDMP3_ERR){
+      audio_write(id,audio_name,filename,out,done);
       if(res == PDMP3_OK || res == PDMP3_NEW_FORMAT) {
-        audio_write(id,audio_name,filename,out,done);
-
 #ifndef NDEBUG
         if(res == PDMP3_NEW_FORMAT) {
           int enc,channels;
           long rate;
-          if (pdmp3_getformat(id, &rate, &channels, &enc) == PDMP3_OK) {
+          if(pdmp3_getformat(id, &rate, &channels, &enc) == PDMP3_OK) {
             struct stat st;
-            if (stat(filename, &st) == 0) {
+            if(stat(filename, &st) == 0) {
               struct pdpm3_frameinfo info;
-              if (pdmp3_info(id,&info) == PDMP3_OK) {
+              if(pdmp3_info(id,&info) == PDMP3_OK) {
                 float duration = (float)st.st_size/(info.bitrate/8.0f);
                 DBG("sample rate: %li Hz, no. channels: %i, duration: %.1f sec.",
                      rate,channels,duration);
               }
+            }
+          }
+
+          if(pdmp3_meta_check(id) & PDMP3_ID3) {
+            pdmp3_id3v2 *v2;
+            pdmp3_id3(id, NULL, &v2);
+            if(v2) {
+              if(v2->artist) DBG("Artist:   %s", v2->artist->p);
+              if(v2->title) DBG("Title:    %s", v2->title->p);
+              if(v2->album) DBG("Album:    %s", v2->album->p);
+              if(v2->year) DBG("Year:     %s", v2->year->p);
+              if(v2->comment) DBG("Comment: %s", v2->comment->p);
             }
           }
         }
