@@ -1410,17 +1410,17 @@ static int Read_ID3v2_Tag(pdmp3_handle *id) {
     return(PDMP3_NEED_MORE);
   }
   else if(size && (filled >= size) && (texts < 32)) {
-    if(!strncmp(id->id3v2->text[texts].id, "PRIV", 4)) { // unimplemented
-       for (i=0; i<size; ++i) Get_Byte(id);
-       id->id3v2_size -= (size+10);
-       return(PDMP3_OK);
+    unsigned char encoding = Get_Byte(id);
+    if(encoding > 0x03) { //  !strncmp(id->id3v2->text[texts].id, "PRIV", 4)) { // unimplemented
+      for (i=1; i<size; ++i) Get_Byte(id);
+      id->id3v2_size -= (size+10);
+      return(PDMP3_OK);
     }
     else {
-      unsigned char encoding = Get_Byte(id);
       if(encoding == 0x00 || encoding == 0x03) { // ISO-8859-1 || UTF-8
         id->id3v2->text[texts].text.p = malloc(size);
         if(id->id3v2->text[texts].text.p) {
-          for (i=0; i<size-1; ++i) {
+          for(i=0; i<size-1; ++i) {
             id->id3v2->text[texts].text.p[i] = Get_Byte(id);
           }
           id->id3v2->text[texts].text.p[i] = 0;
@@ -1474,6 +1474,8 @@ static int Read_ID3v2_Tag(pdmp3_handle *id) {
         id->id3v2->year = &id->id3v2->text[texts].text;
       } else if(!strncmp(id->id3v2->text[texts].id, "COMM", 4)) {
         id->id3v2->comment = &id->id3v2->text[texts].text;
+      } else if(!strncmp(id->id3v2->text[texts].id, "TCON", 4)) {
+        id->id3v2->genre = &id->id3v2->text[texts].text;
       }
     }
 
@@ -1490,6 +1492,9 @@ static int Read_ID3v2_Tag(pdmp3_handle *id) {
     id->id3v2_processing = 0;
     id->id3v2_size = 0;
     res = PDMP3_OK;
+  }
+  else if (texts >= 32) {
+    ERR("Maximum number of supported id3v2 frames reached (32)");
   }
   return(res);
 }
@@ -1508,6 +1513,7 @@ static int Read_ID3v2_Header(pdmp3_handle *id) {
     b1 = Get_Byte(id);	// ID3v2 version number
     b2 = Get_Byte(id);	// ID3v2 revision number
     if((b1 != 3 && b1 != 4) || b2 == 0xFF) {
+      ERR("Unsupported evrsion of id3v2: %i:%i",b1,b2);
       return(PDMP3_ERR);
     }
     id->id3v2_flags = Get_Byte(id);	// ID3v2 flags
@@ -1516,11 +1522,13 @@ static int Read_ID3v2_Header(pdmp3_handle *id) {
     b3 = Get_Byte(id);
     b4 = Get_Byte(id);
     if(b1 & 0x80 || b1 & 0x80 || b2 & 0x80 || b3 & 0x80) {
+      ERR("Error in id3v2 size tag");
       return(PDMP3_ERR);
     }
     id->id3v2_size =(((unsigned)b1 << 21) |((unsigned)b2 << 14) |((unsigned)b3 << 7) |((unsigned)b4 << 0));
     if(id->id3v2_flags != 0x00) {
-      return(PDMP3_ERR);		// special features not implemented
+      ERR("Special id3v2 features not implemented");
+      return(PDMP3_ERR);
     }
     id->id3v2 = calloc(1,sizeof(pdmp3_id3v2));
     if(id->id3v2)
@@ -2884,6 +2892,7 @@ int pdmp3_id3(pdmp3_handle *id,pdmp3_id3v1 **v1,pdmp3_id3v2 **v2)
     *v2 = id->id3v2;
     return(PDMP3_OK);
   }
+  ERR("pdmp3_id3: v2 must be a valid pointer");
   return(PDMP3_ERR);
 }
 
