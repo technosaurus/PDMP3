@@ -22,7 +22,9 @@
 
  Contributors:
    technosaurus
-   Erik Hofman (added a subset of the libmpg123 compatible streaming API)
+   Erik Hofman(erik@ehofman.com)
+     - added a subset of the libmpg123 compatible streaming API
+     - added ID3v2 support
 */
 
 #include <stdint.h>
@@ -206,6 +208,7 @@ typedef struct
 
   pdmp3_id3v2 *id3v2;
   unsigned id3v2_size;
+  unsigned id3v2_frame_size;
   char id3v2_processing;
   char id3v2_flags;
   char new_header;
@@ -1378,15 +1381,31 @@ static void Free_ID3v2(pdmp3_id3v2 *v2) {
   }
 }
 
-static int Read_ID3v2_Tag(pdmp3_handle *id) {
+static int Read_ID3v2_Frame(pdmp3_handle *id) {
   unsigned b1, b2, b3, b4, size, texts; // flags
   unsigned pos = id->processed;
   unsigned mark = id->istart;
   int i, res = PDMP3_ERR;
   unsigned filled;
 
-  if(Get_Inbuf_Filled(id) < 11)
+  if(id->id3v2_processing == 2) { // skip the rest of the ID3v2 header
+    filled = Get_Inbuf_Filled(id);
+    if (filled > id->id3v2_frame_size) {
+      filled = id->id3v2_frame_size;
+    }
+    for(i=0; i<filled; ++i) Get_Byte(id);
+    id->id3v2_frame_size -= filled;
+    if (!id->id3v2_frame_size) {
+      id->id3v2_processing = 0;
+      return(PDMP3_OK);
+    } else {
+      return(PDMP3_NEED_MORE);
+    }
+  }
+
+  if(Get_Inbuf_Filled(id) < 11) {
     return(PDMP3_NEED_MORE);
+  }
 
   texts = id->id3v2->texts;
   for (i=0; i<4; ++i) {
@@ -1398,69 +1417,92 @@ static int Read_ID3v2_Tag(pdmp3_handle *id) {
   b3 = Get_Byte(id);
   b4 = Get_Byte(id);
   size =(b1 << 24) |(b2 << 16) |(b3 << 8) |(b4 << 0);
+  id->id3v2_frame_size = (size+10);
 
   b1 = Get_Byte(id);
   b2 = Get_Byte(id);
 //flags =(b1 << 8) |(b2 << 0);
 
   filled = Get_Inbuf_Filled(id);
-  if(!size && (id->id3v2_size > filled)) {
+  if (!strncmp(id->id3v2->text[texts].id, "APIC", 4)) {
+    id->id3v2_size -= id->id3v2_frame_size+3;
+    id->id3v2_processing = 2;
+    return(PDMP3_OK);
+  }
+  else if(!size && (id->id3v2_size > filled)) {
     id->processed = pos;
     id->istart = mark;
     return(PDMP3_NEED_MORE);
   }
   else if(size && (filled >= size) && (texts < 32)) {
-    unsigned char encoding = Get_Byte(id);
-    if(encoding > 0x03) { //  !strncmp(id->id3v2->text[texts].id, "PRIV", 4)) { // unimplemented
-      for (i=1; i<size; ++i) Get_Byte(id);
-      id->id3v2_size -= (size+10);
-      return(PDMP3_OK);
-    }
-    else {
-      if(encoding == 0x00 || encoding == 0x03) { // ISO-8859-1 || UTF-8
+    if (id->id3v2->text[texts].id[0] == 'T' || // Text information frames
+        !strncmp(id->id3v2->text[texts].id, "COMM", 4))
+    {
+      unsigned char encoding = Get_Byte(id);
+      if (!strncmp(id->id3v2->text[texts].id, "COMM", 4)) {
+         for(i=0; i<3; ++i) Get_Byte(id); // language id
+         size -= 3;
+         if(encoding == 0x00 || encoding >= 0x03) { // short description
+           while(Get_Byte(id) != 0) --size;
+           --size;
+         } else if(encoding == 0x01 || encoding == 0x02) {
+           while(Get_Byte(id) != 0 || Get_Byte(id) != 0) --size;
+           size -= 2;
+         }
+      }
+
+      if(encoding == 0x00 || encoding >= 0x03) { // ISO-8859-1 || UTF-8
         id->id3v2->text[texts].text.p = malloc(size);
+        id->id3v2->text[texts].text.p[0] = encoding;
         if(id->id3v2->text[texts].text.p) {
-          for(i=0; i<size-1; ++i) {
+          for(i=(encoding > 0x03)?1:0; i<size-1; ++i) {
             id->id3v2->text[texts].text.p[i] = Get_Byte(id);
           }
           id->id3v2->text[texts].text.p[i] = 0;
           id->id3v2->text[texts].text.size = size;
           id->id3v2->text[texts].text.fill = size;
         }
-        id->id3v2_size -= (size+10);
+        id->id3v2_size -= id->id3v2_frame_size;
       } else if(encoding == 0x01 || encoding == 0x02) { // UTF-16
-        size_t srclen = 2*size;
+        size_t srclen = --size;
         char *src = alloca(srclen);
         if(src) {
-          size_t dstlen = 2*size;
+          size_t dstlen;
           char *dst;
 
-          for (i=0; i<srclen-1; ++i) {
+          for (i=0; i<srclen; ++i) {
             src[i] = Get_Byte(id);
           }
 
 #ifdef _WIN32
           dstlen = WideCharToMultiByte(CP_UTF8, 0, src, srclen, 0,0,NULL,NULL);
-          dst = id->id3v2->text[texts].text.p = malloc(dstlen);
+          dst = id->id3v2->text[texts].text.p = malloc(dstlen+1);
           if(dst) {
-            WideCharToMultiByte(CP_UTF8, 0, src, srclen, dst, dstlen, NULL, NULL);
+            WideCharToMultiByte(CP_UTF8, 0, src, srclen, dst, dstlen, NULL,NULL);
             id->id3v2->text[texts].text.size = dstlen;
             id->id3v2->text[texts].text.fill = dstlen;
             dst[dstlen] = 0;
           }
 #else
+          dstlen = 4*size; // worst case scenario
           dst = id->id3v2->text[texts].text.p = malloc(dstlen);
           if(dst) {
             iconv_t conv = iconv_open("UTF-8", "UTF-16");
             iconv(conv, &src, &srclen, &dst, &dstlen);
             iconv_close(conv);
-            id->id3v2->text[texts].text.size = 2*size;
-            id->id3v2->text[texts].text.fill = 2*size-dstlen;
+            id->id3v2->text[texts].text.size = 4*size;
+            id->id3v2->text[texts].text.fill = 4*size-dstlen;
+            id->id3v2->text[texts].text.p[4*size-dstlen] = 0;
           }
 #endif
-          id->id3v2_size -= (2*(size-1)+1+10);
+          id->id3v2_size -= id->id3v2_frame_size;
         } /* src != NULL */
       }
+    } else { // skip unsupported tags
+      unsigned char encoding = Get_Byte(id);
+      for (i=1; i<size; ++i) Get_Byte(id);
+      id->id3v2_size -= id->id3v2_frame_size;
+      return(PDMP3_OK);
     }
 
     if(id->id3v2->text[texts].text.p) {
@@ -1488,9 +1530,8 @@ static int Read_ID3v2_Tag(pdmp3_handle *id) {
     return(PDMP3_NEED_MORE);
   }
   else if(!size) {
-    for(i=0; i<id->id3v2_size; ++i) Get_Byte(id);
-    id->id3v2_processing = 0;
-    id->id3v2_size = 0;
+    id->id3v2_size -= id->id3v2_frame_size;
+    id->id3v2_processing = 2;
     res = PDMP3_OK;
   }
   else if (texts >= 32) {
@@ -1513,7 +1554,7 @@ static int Read_ID3v2_Header(pdmp3_handle *id) {
     b1 = Get_Byte(id);	// ID3v2 version number
     b2 = Get_Byte(id);	// ID3v2 revision number
     if((b1 != 3 && b1 != 4) || b2 == 0xFF) {
-      ERR("Unsupported evrsion of id3v2: %i:%i",b1,b2);
+      ERR("Unsupported version of id3v2: %i:%i",b1,b2);
       return(PDMP3_ERR);
     }
     id->id3v2_flags = Get_Byte(id);	// ID3v2 flags
@@ -1536,7 +1577,7 @@ static int Read_ID3v2_Header(pdmp3_handle *id) {
   }
 
   if(id->id3v2) {
-    while ((res = Read_ID3v2_Tag(id)) == PDMP3_OK) {
+    while ((res = Read_ID3v2_Frame(id)) == PDMP3_OK) {
        if (!id->id3v2_processing) break;
     }
   }
@@ -1629,13 +1670,14 @@ static int Read_Header(pdmp3_handle *id) {
 }
 
 static int Search_Header(pdmp3_handle *id) {
+  int id3v2 = id->id3v2_processing;
   unsigned pos = id->processed;
   unsigned mark = id->istart;
   int res = PDMP3_NEED_MORE;
   int cnt = 0;
   while(Get_Inbuf_Filled(id) > 4) {
     res = Read_Header(id);
-    if (res == PDMP3_NEED_MORE) break;
+    if (id3v2) return(PDMP3_NEED_MORE);
     if((res == PDMP3_OK || res == PDMP3_NEW_FORMAT) &&
        (id->g_frame_header.layer == 3)) break;
     if(++mark == INBUF_SIZE) {
@@ -2755,6 +2797,7 @@ int pdmp3_read(pdmp3_handle *id,unsigned char *outmemory,size_t outsize,size_t *
 
       while(outsize) {
         if(Get_Inbuf_Filled(id) >= (2*576)) {
+          int id3v2 = id->id3v2_processing;
           size_t pos = id->processed;
           unsigned mark = id->istart;
 
@@ -2769,6 +2812,9 @@ int pdmp3_read(pdmp3_handle *id,unsigned char *outmemory,size_t outsize,size_t *
             *done += batch;
           }
           else {
+            if (res == PDMP3_NEED_MORE && id->id3v2_processing == 2) {
+              return(res);
+            }
             id->processed = pos;
             id->istart = mark;
             break;
