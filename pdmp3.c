@@ -142,6 +142,7 @@ typedef struct
   char id[4];
   pdmp3_string description;
   pdmp3_string text;
+  unsigned char encoding;
 } pdmp3_text;
 
 typedef struct
@@ -208,6 +209,7 @@ typedef struct
 
   pdmp3_id3v2 *id3v2;
   unsigned id3v2_size;
+  unsigned id3v2_frame_pos;
   unsigned id3v2_frame_size;
   char id3v2_processing;
   char id3v2_flags;
@@ -1381,6 +1383,164 @@ static void Free_ID3v2(pdmp3_id3v2 *v2) {
   }
 }
 
+static int Process_ID3v2_Padding(pdmp3_handle *id) {
+  unsigned i, filled, size;
+
+  filled = Get_Inbuf_Filled(id);
+  size = id->id3v2_size;
+  if (filled > size) {
+    filled = size;
+  }
+  for(i=0; i<filled; ++i) {
+     Get_Byte(id);
+  }
+  id->id3v2_size -= filled;
+
+  if (id->id3v2_size == 0) {
+    id->id3v2_processing = 0;
+  }
+  return(PDMP3_OK);
+}
+
+static int Process_ID3v2_Frame(pdmp3_handle *id) {
+  unsigned i, filled, size, encoding, texts;
+
+  texts = id->id3v2->texts;
+  size = id->id3v2_frame_size;
+  if ((id->id3v2_frame_pos) == 0 && (texts < 32)) {
+    if ((id->id3v2->text[texts].id[0] == 'T') || // Text information frames
+        !strncmp(id->id3v2->text[texts].id, "COMM", 4)) // Comments
+    {
+      encoding = Get_Byte(id);
+      id->id3v2_frame_size--;
+
+      if (!strncmp(id->id3v2->text[texts].id, "COMM", 4)) {
+        id->id3v2_frame_size -= 3; // language code
+        for(i=0; i<3; ++i) {
+          id->id3v2->text[texts].lang[i] = Get_Byte(id);
+        }
+      }
+
+      size = id->id3v2_frame_size;
+      id->id3v2->text[texts].text.p = malloc(size);
+      if(id->id3v2->text[texts].text.p == 0) {
+        ERR("Not enough memory to store ID3v2 information");
+        id->id3v2_processing = 0;
+        return(PDMP3_NO_SPACE);
+      }
+
+      if(encoding >= 0x20) {
+        id->id3v2->text[texts].text.p[id->id3v2_frame_pos++] = encoding;
+      }
+      id->id3v2->text[texts].encoding = encoding;
+      id->id3v2->text[texts].text.p[size] = 0;
+      id->id3v2->text[texts].text.size = size;
+      id->id3v2->text[texts].text.fill = size;
+    }
+  } /* id->id3v2_frame_pos == 0 */
+
+
+  filled = Get_Inbuf_Filled(id);
+  size = id->id3v2_frame_size; // id->id3v2->text[texts].text.size;
+  if (filled > size) {
+    filled = size;
+  }
+
+  if (id->id3v2->text[texts].text.p) {
+    for(i=0; i<filled; ++i) {
+       id->id3v2->text[texts].text.p[id->id3v2_frame_pos++] = Get_Byte(id);
+    }
+  } else {
+    for(i=0; i<filled; ++i) Get_Byte(id);
+  }
+  id->id3v2_frame_size -= filled;
+
+  if (id->id3v2_frame_size == 0) { // All data is read
+    id->id3v2_processing = 1;
+    encoding = id->id3v2->text[texts].encoding;
+    if(encoding == 0x01 || encoding == 0x02) { // UTF-16
+      size_t dstlen, srclen = id->id3v2->text[texts].text.size;
+      char *dst, *src = id->id3v2->text[texts].text.p;
+
+#ifdef _WIN32
+      dstlen = WideCharToMultiByte(CP_UTF8, 0, src, srclen, 0,0,NULL,NULL);
+      dst = id->id3v2->text[texts].text.p = malloc(dstlen);
+      if(dst) {
+        WideCharToMultiByte(CP_UTF8, 0, src, srclen, dst, dstlen, NULL, NULL);
+        id->id3v2->text[texts].text.fill = dstlen;
+        dst[dstlen] = 0;
+      }
+#else
+      dstlen = 2*srclen;
+      dst = malloc(dstlen);
+      if(dst) {
+        iconv_t conv = iconv_open("UTF-8", "UTF-16");
+        if (conv) {
+          size_t size = dstlen;
+          char *tmp = src;
+          id->id3v2->text[texts].text.p = dst;
+          id->id3v2->text[texts].text.size = dstlen;
+
+          iconv(conv, &src, &srclen, &dst, &dstlen);
+          iconv_close(conv);
+          free(tmp);
+
+          id->id3v2->text[texts].text.fill = size-dstlen;
+          id->id3v2->text[texts].text.p[size-dstlen] = 0;
+        }
+        else {
+          free(dst);
+        }
+      }
+      else {
+        ERR("Not enough memory to store ID3v2 UTF-8 information");
+        id->id3v2_processing = 0;
+        return(PDMP3_NO_SPACE);
+      }
+#endif
+    }
+
+    if(!strncmp(id->id3v2->text[texts].id, "TIT2", 4)) {
+      id->id3v2->title = &id->id3v2->text[texts].text;
+    } else if(!strncmp(id->id3v2->text[texts].id, "TPE1", 4)) {
+      id->id3v2->artist = &id->id3v2->text[texts].text;
+    } else if(!strncmp(id->id3v2->text[texts].id, "TALB", 4)) {
+      id->id3v2->album = &id->id3v2->text[texts].text;
+    } else if(!strncmp(id->id3v2->text[texts].id, "TYER", 4)) {
+      id->id3v2->year = &id->id3v2->text[texts].text;
+    } else if(!strncmp(id->id3v2->text[texts].id, "COMM", 4)) {
+      id->id3v2->comment = &id->id3v2->text[texts].text;
+    } else if(!strncmp(id->id3v2->text[texts].id, "TCON", 4)) {
+      id->id3v2->genre = &id->id3v2->text[texts].text;
+    }
+
+    if (!strncmp(id->id3v2->text[texts].id, "COMM", 4)) {
+      unsigned i, filled = id->id3v2->text[texts].text.fill;
+      char *description = id->id3v2->text[texts].text.p;
+      char *text = description;
+
+      while(filled-- && *text++ != 0);
+      id->id3v2->text[texts].description.p = description+filled;
+      id->id3v2->text[texts].description.fill = text-description;
+      for(i=0; i<filled; ++i) {
+         char tmp = text[i];
+         text[i] = description[i];
+         description[i] = tmp;
+      }
+    }
+
+    if (id->id3v2->text[texts].text.p) {
+      ++id->id3v2->texts;
+    }
+    if (id->id3v2_frame_size == 0) {
+      id->id3v2_processing = (id->id3v2_size > 0) ? 1 : 0;
+    }
+    return(PDMP3_OK);
+  } else {
+    return(PDMP3_NEED_MORE);
+  }
+}
+
 static int Read_ID3v2_Frame(pdmp3_handle *id) {
   unsigned b1, b2, b3, b4, size, texts; // flags
   unsigned pos = id->processed;
@@ -1388,19 +1548,10 @@ static int Read_ID3v2_Frame(pdmp3_handle *id) {
   int i, res = PDMP3_ERR;
   unsigned filled;
 
-  if(id->id3v2_processing == 2) { // skip the rest of the ID3v2 header
-    filled = Get_Inbuf_Filled(id);
-    if (filled > id->id3v2_frame_size) {
-      filled = id->id3v2_frame_size;
-    }
-    for(i=0; i<filled; ++i) Get_Byte(id);
-    id->id3v2_frame_size -= filled;
-    if (!id->id3v2_frame_size) {
-      id->id3v2_processing = 0;
-      return(PDMP3_OK);
-    } else {
-      return(PDMP3_NEED_MORE);
-    }
+  if(id->id3v2_processing == 2) { // process the frame
+    return Process_ID3v2_Frame(id);
+  } else if(id->id3v2_processing == 3) { // process padding
+    return Process_ID3v2_Padding(id);
   }
 
   if(Get_Inbuf_Filled(id) < 11) {
@@ -1417,125 +1568,34 @@ static int Read_ID3v2_Frame(pdmp3_handle *id) {
   b3 = Get_Byte(id);
   b4 = Get_Byte(id);
   size =(b1 << 24) |(b2 << 16) |(b3 << 8) |(b4 << 0);
-  id->id3v2_frame_size = (size+10);
 
   b1 = Get_Byte(id);
   b2 = Get_Byte(id);
 //flags =(b1 << 8) |(b2 << 0);
 
+  id->id3v2_frame_pos = 0;
+  id->id3v2_frame_size = size;
+
   filled = Get_Inbuf_Filled(id);
-  if (!strncmp(id->id3v2->text[texts].id, "APIC", 4)) {
-    id->id3v2_size -= id->id3v2_frame_size+3;
-    id->id3v2_processing = 2;
-    return(PDMP3_OK);
-  }
-  else if(!size && (id->id3v2_size > filled)) {
-    id->processed = pos;
-    id->istart = mark;
-    return(PDMP3_NEED_MORE);
-  }
-  else if(size && (filled >= size) && (texts < 32)) {
-    if (id->id3v2->text[texts].id[0] == 'T' || // Text information frames
-        !strncmp(id->id3v2->text[texts].id, "COMM", 4))
-    {
-      unsigned char encoding = Get_Byte(id);
-      if (!strncmp(id->id3v2->text[texts].id, "COMM", 4)) {
-         for(i=0; i<3; ++i) Get_Byte(id); // language id
-         size -= 3;
-         if(encoding == 0x00 || encoding >= 0x03) { // short description
-           while(Get_Byte(id) != 0) --size;
-           --size;
-         } else if(encoding == 0x01 || encoding == 0x02) {
-           while(Get_Byte(id) != 0 || Get_Byte(id) != 0) --size;
-           size -= 2;
-         }
-      }
-
-      if(encoding == 0x00 || encoding >= 0x03) { // ISO-8859-1 || UTF-8
-        id->id3v2->text[texts].text.p = malloc(size);
-        id->id3v2->text[texts].text.p[0] = encoding;
-        if(id->id3v2->text[texts].text.p) {
-          for(i=(encoding > 0x03)?1:0; i<size-1; ++i) {
-            id->id3v2->text[texts].text.p[i] = Get_Byte(id);
-          }
-          id->id3v2->text[texts].text.p[i] = 0;
-          id->id3v2->text[texts].text.size = size;
-          id->id3v2->text[texts].text.fill = size;
-        }
-        id->id3v2_size -= id->id3v2_frame_size;
-      } else if(encoding == 0x01 || encoding == 0x02) { // UTF-16
-        size_t srclen = --size;
-        char *src = alloca(srclen);
-        if(src) {
-          size_t dstlen;
-          char *dst;
-
-          for (i=0; i<srclen; ++i) {
-            src[i] = Get_Byte(id);
-          }
-
-#ifdef _WIN32
-          dstlen = WideCharToMultiByte(CP_UTF8, 0, src, srclen, 0,0,NULL,NULL);
-          dst = id->id3v2->text[texts].text.p = malloc(dstlen+1);
-          if(dst) {
-            WideCharToMultiByte(CP_UTF8, 0, src, srclen, dst, dstlen, NULL,NULL);
-            id->id3v2->text[texts].text.size = dstlen;
-            id->id3v2->text[texts].text.fill = dstlen;
-            dst[dstlen] = 0;
-          }
-#else
-          dstlen = 4*size; // worst case scenario
-          dst = id->id3v2->text[texts].text.p = malloc(dstlen);
-          if(dst) {
-            iconv_t conv = iconv_open("UTF-8", "UTF-16");
-            iconv(conv, &src, &srclen, &dst, &dstlen);
-            iconv_close(conv);
-            id->id3v2->text[texts].text.size = 4*size;
-            id->id3v2->text[texts].text.fill = 4*size-dstlen;
-            id->id3v2->text[texts].text.p[4*size-dstlen] = 0;
-          }
-#endif
-          id->id3v2_size -= id->id3v2_frame_size;
-        } /* src != NULL */
-      }
-    } else { // skip unsupported tags
-      unsigned char encoding = Get_Byte(id);
-      for (i=1; i<size; ++i) Get_Byte(id);
-      id->id3v2_size -= id->id3v2_frame_size;
-      return(PDMP3_OK);
-    }
-
-    if(id->id3v2->text[texts].text.p) {
-      if(!strncmp(id->id3v2->text[texts].id, "TIT2", 4)) {
-        id->id3v2->title = &id->id3v2->text[texts].text;
-      } else if(!strncmp(id->id3v2->text[texts].id, "TPE1", 4)) {
-        id->id3v2->artist = &id->id3v2->text[texts].text;
-      } else if(!strncmp(id->id3v2->text[texts].id, "TALB", 4)) {
-        id->id3v2->album = &id->id3v2->text[texts].text;
-      } else if(!strncmp(id->id3v2->text[texts].id, "TYER", 4)) {
-        id->id3v2->year = &id->id3v2->text[texts].text;
-      } else if(!strncmp(id->id3v2->text[texts].id, "COMM", 4)) {
-        id->id3v2->comment = &id->id3v2->text[texts].text;
-      } else if(!strncmp(id->id3v2->text[texts].id, "TCON", 4)) {
-        id->id3v2->genre = &id->id3v2->text[texts].text;
-      }
-    }
-
-    ++id->id3v2->texts;
-    res = PDMP3_OK;
-  }
-  else if(filled < size) {
+  if(!size && (id->id3v2_size > filled)) {
     id->processed = pos;
     id->istart = mark;
     return(PDMP3_NEED_MORE);
   }
   else if(!size) {
-    id->id3v2_size -= id->id3v2_frame_size;
-    id->id3v2_processing = 2;
-    res = PDMP3_OK;
+    id->id3v2_size -= (id->id3v2_frame_size+10);
+    id->id3v2_processing = 3;
+    res = Process_ID3v2_Padding(id);
   }
-  else if (texts >= 32) {
-    ERR("Maximum number of supported id3v2 frames reached (32)");
+  else if (filled >= size) {
+    id->id3v2_size -= (id->id3v2_frame_size+10);
+    id->id3v2_processing = 2;
+    res = Process_ID3v2_Frame(id);
+  }
+  else if(filled < size) {
+    id->processed = pos;
+    id->istart = mark;
+    return(PDMP3_NEED_MORE);
   }
   return(res);
 }
@@ -1670,14 +1730,12 @@ static int Read_Header(pdmp3_handle *id) {
 }
 
 static int Search_Header(pdmp3_handle *id) {
-  int id3v2 = id->id3v2_processing;
   unsigned pos = id->processed;
   unsigned mark = id->istart;
   int res = PDMP3_NEED_MORE;
   int cnt = 0;
   while(Get_Inbuf_Filled(id) > 4) {
     res = Read_Header(id);
-    if (id3v2) return(PDMP3_NEED_MORE);
     if((res == PDMP3_OK || res == PDMP3_NEW_FORMAT) &&
        (id->g_frame_header.layer == 3)) break;
     if(++mark == INBUF_SIZE) {
@@ -1685,7 +1743,10 @@ static int Search_Header(pdmp3_handle *id) {
     }
     id->istart = mark;
     id->processed = pos;
-    if(++cnt > (2*576)) return(PDMP3_ERR); /* more than one frame and still no header */
+    if(++cnt > (2*576)) {
+      ERR("Scanned more than one frame and no valid header found");
+      return(PDMP3_ERR); /* more than one frame and still no header */
+    }
   }
   return res;
 }
@@ -2797,26 +2858,19 @@ int pdmp3_read(pdmp3_handle *id,unsigned char *outmemory,size_t outsize,size_t *
 
       while(outsize) {
         if(Get_Inbuf_Filled(id) >= (2*576)) {
-          int id3v2 = id->id3v2_processing;
-          size_t pos = id->processed;
-          unsigned mark = id->istart;
+          if (id->id3v2_processing) {
+              res = Read_Header(id);
+          } else {
+            res = Read_Frame(id);
+            if(res == PDMP3_OK || res == PDMP3_NEW_FORMAT) {
+              size_t batch;
 
-          res = Read_Frame(id);
-          if(res == PDMP3_OK || res == PDMP3_NEW_FORMAT) {
-            size_t batch;
-
-            Decode_L3(id);
-            Convert_Frame_S16(id,outmemory,outsize,&batch);
-            outmemory += batch;
-            outsize -= batch;
-            *done += batch;
-          }
-          else {
-            if (res == PDMP3_NEED_MORE && id->id3v2_processing == 2) {
-              return(res);
+              Decode_L3(id);
+              Convert_Frame_S16(id,outmemory,outsize,&batch);
+              outmemory += batch;
+              outsize -= batch;
+              *done += batch;
             }
-            id->processed = pos;
-            id->istart = mark;
             break;
           }
         }
@@ -2866,8 +2920,10 @@ int pdmp3_decode(pdmp3_handle *id,const unsigned char *in,size_t insize,unsigned
       unsigned pos = id->processed;
       unsigned mark = id->istart;
       res = Search_Header(id);
-      id->processed = pos;
-      id->istart = mark;
+      if (!id->id3v2_processing) {
+        id->processed = pos;
+        id->istart = mark;
+      }
 
       if(id->id3v2_processing) {
          res = PDMP3_NEED_MORE;
