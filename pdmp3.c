@@ -1460,21 +1460,23 @@ static int Process_ID3v2_Frame(pdmp3_handle *id) {
     encoding = id->id3v2->text[texts].encoding;
     if(encoding == 0x01 || encoding == 0x02) { // UTF-16
       size_t dstlen, srclen = id->id3v2->text[texts].text.size;
-      char *dst, *src = id->id3v2->text[texts].text.p;
 
 #ifdef _WIN32
-      dstlen = WideCharToMultiByte(CP_UTF8, 0, src, srclen, 0,0,NULL,NULL);
+      const wchar_t *src = (wchar_t*)id->id3v2->text[texts].text.p;
+      char*dst;
+      dstlen = WideCharToMultiByte(CP_ACP, 0, src, srclen, 0,0,NULL,NULL);
       dst = id->id3v2->text[texts].text.p = malloc(dstlen);
       if(dst) {
-        WideCharToMultiByte(CP_UTF8, 0, src, srclen, dst, dstlen, NULL, NULL);
+        WideCharToMultiByte(CP_ACP, 0, src, srclen, dst, dstlen, NULL, NULL);
         id->id3v2->text[texts].text.fill = dstlen;
         dst[dstlen] = 0;
       }
 #else
+      char *dst, *src = id->id3v2->text[texts].text.p;
       dstlen = 2*srclen;
       dst = malloc(dstlen);
       if(dst) {
-        iconv_t conv = iconv_open("UTF-8", "UTF-16");
+        iconv_t conv = iconv_open("", "UTF-16");
         if (conv) {
           size_t size = dstlen;
           char *tmp = src;
