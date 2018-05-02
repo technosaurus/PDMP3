@@ -654,7 +654,7 @@ hufftables g_huffman_main [34] = {
   {g_huffman_table +2230 ,512,11 },  /* Table 30 */
   {g_huffman_table +2230 ,512,13 },  /* Table 31 */
   {g_huffman_table +2742 , 31, 0 },  /* Table 32 */
-  {g_huffman_table +2261 , 31, 0 },  /* Table 33 */
+  {g_huffman_table +2773 , 31, 0 },  /* Table 33 */
 };
 
 static const float // ci[8]={-0.6,-0.535,-0.33,-0.185,-0.095,-0.041,-0.0142,-0.0037},
