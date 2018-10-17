@@ -27,6 +27,10 @@
      - added ID3v2 support
 */
 
+#if HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #include <stdint.h>
 #include <stdbool.h>
 #include <unistd.h>
@@ -45,6 +49,8 @@
 #ifdef OUTPUT_SOUND
 #include <sys/soundcard.h>
 #endif
+
+#define UNUSED(a)	a
 
 /* Types used in the frame header */
 typedef enum { /* Layer number */
@@ -262,8 +268,8 @@ void pdmp3(char * const *mp3s);
 #define FRAG_NUMS         0x0004
 
 #ifndef NDEBUG
-#define DBG(str,args...) { printf(str,## args); printf("\n"); }
-#define ERR(str,args...) { fprintf(stderr,str,## args) ; fprintf(stderr,"\n"); }
+#define DBG(...) { printf(__VA_ARGS__); printf("\n"); }
+#define ERR(...) { fprintf(stderr,__VA_ARGS__) ; fprintf(stderr,"\n"); }
 #else
 #define DBG(str,args...)
 #define ERR(str,args...)
@@ -304,7 +310,9 @@ static unsigned Get_Main_Pos(pdmp3_handle *id);
 static unsigned Get_Side_Bits(pdmp3_handle *id,unsigned number_of_bits);
 static unsigned Get_Filepos(pdmp3_handle *id);
 
+#if defined(OUTPUT_SOUND) || defined(OUTPUT_RAW)
 static void Error(const char *s,int e);
+#endif
 static void Get_Sideinfo(pdmp3_handle *id,unsigned sideinfo_size);
 static void IMDCT_Win(float in[18],float out[36],unsigned block_type);
 static void L3_Antialias(pdmp3_handle *id,unsigned gr,unsigned ch);
@@ -1162,7 +1170,7 @@ static unsigned Get_Inbuf_Free(pdmp3_handle *id) {
 *   Return value: PDMP3_OK or PDMP3_ERR if the operation couldn't be performed.
 *   Author: Krister Lagerström(krister@kmlager.com) **/
 static int Get_Bytes(pdmp3_handle *id,unsigned no_of_bytes,unsigned data_vec[]){
-  int i;
+  unsigned i;
   unsigned val;
 
   for(i = 0; i < no_of_bytes; i++) {
@@ -1182,7 +1190,7 @@ static int Get_Bytes(pdmp3_handle *id,unsigned no_of_bytes,unsigned data_vec[]){
 * Return value: Status
 * Author: Krister Lagerström(krister@kmlager.com) **/
 static int Get_Main_Data(pdmp3_handle *id,unsigned main_data_size,unsigned main_data_begin){
-  int i;
+  unsigned i;
 
   if(main_data_size > 1500) ERR("main_data_size = %d\n",main_data_size);
   /* Check that there's data available from previous frames if needed */
@@ -1422,7 +1430,7 @@ static int Process_ID3v2_Frame(pdmp3_handle *id) {
       }
 
       size = id->id3v2_frame_size;
-      id->id3v2->text[texts].text.p = malloc(size);
+      id->id3v2->text[texts].text.p = malloc(size+1);
       if(id->id3v2->text[texts].text.p == 0) {
         ERR("Not enough memory to store ID3v2 information");
         id->id3v2_processing = 0;
@@ -1978,10 +1986,12 @@ static unsigned Get_Side_Bits(pdmp3_handle *id,unsigned number_of_bits){
 * Parameters: TBD
 * Return value: TBD
 * Author: Krister Lagerström(krister@kmlager.com) **/
+#if defined(OUTPUT_SOUND) || defined(OUTPUT_RAW)
 static void Error(const char *s,int e){
   (void) fwrite(s,1,strlen(s),stderr);
   exit(e);
 }
+#endif
 
 /**Description: Reads sideinfo from bitstream into buffer for Get_Side_Bits.
 * Parameters: Stream handle,TBD
@@ -2676,8 +2686,9 @@ static void audio_write_raw(const char *filename,unsigned *samples,unsigned nbyt
               of bytes in the sample buffer.
 * Return value: None
 * Author: Krister Lagerström(krister@kmlager.com) **/
+#if defined(OUTPUT_SOUND) || defined(OUTPUT_RAW)
 static void audio_write(pdmp3_handle *id,const char *audio_name,const char *filename,unsigned char *samples,size_t nbytes){
-#ifdef OUTPUT_SOUND
+# ifdef OUTPUT_SOUND
   static int init = 0,audio,curr_sample_rate = 0;
   int format = AFMT_S16_LE,tmp,dsp_speed = 44100,dsp_stereo = 2;
   int sample_rate = g_sampling_frequency[id->g_frame_header.sampling_frequency];
@@ -2705,12 +2716,13 @@ static void audio_write(pdmp3_handle *id,const char *audio_name,const char *file
 
   if(write(audio,samples,nbytes) != nbytes)
     Error("Unable to write audio data\n",-1);
-#endif /* OUTPUT_SOUND */
-#ifdef OUTPUT_RAW
+# endif /* OUTPUT_SOUND */
+# ifdef OUTPUT_RAW
   audio_write_raw(filename,samples,nbytes);
-#endif /* OUTPUT_RAW */
+# endif /* OUTPUT_RAW */
   return;
 } /* audio_write() */
+#endif /* defined(OUTPUT_SOUND) || defined(OUTPUT_RAW) */
 
 
 /*#############################################################################
@@ -2722,8 +2734,8 @@ static void audio_write(pdmp3_handle *id,const char *audio_name,const char *file
 static void Convert_Frame_S16(pdmp3_handle *id,unsigned char *outbuf,size_t buflen,size_t *done)
 {
   short *s = (short *)outbuf;
-  unsigned lo,hi,nsamps,framesz;
-  int q,i,nch,gr;
+  unsigned q,lo,hi,nsamps,framesz;
+  int i,nch,gr;
 
   nch = (id->g_frame_header.mode == mpeg1_mode_single_channel ? 1 : 2);
   framesz = sizeof(short)*nch;
@@ -2763,7 +2775,7 @@ static void Convert_Frame_S16(pdmp3_handle *id,unsigned char *outbuf,size_t bufl
 * Parameters: None
 * Return value: Stream handle
 * Author: Erik Hofman(erik@ehofman.com) **/
-pdmp3_handle* pdmp3_new(const char *decoder,int *error){
+pdmp3_handle* pdmp3_new(UNUSED(const char *decoder),UNUSED(int *error)){
   return malloc(sizeof(pdmp3_handle));
 }
 
@@ -2807,10 +2819,10 @@ int pdmp3_open_feed(pdmp3_handle *id){
 * Author: Erik Hofman(erik@ehofman.com) **/
 int pdmp3_feed(pdmp3_handle *id,const unsigned char *in,size_t size){
   if(id && in && size) {
-    int free = Get_Inbuf_Free(id);
+    size_t free = Get_Inbuf_Free(id);
     if(size<=free)
     {
-      int res;
+      size_t res;
       if(id->iend<id->istart)
       {
          res = id->istart-id->iend;
@@ -2904,7 +2916,7 @@ int pdmp3_read(pdmp3_handle *id,unsigned char *outmemory,size_t outsize,size_t *
 * Author: Erik Hofman(erik@ehofman.com) **/
 int pdmp3_decode(pdmp3_handle *id,const unsigned char *in,size_t insize,unsigned char *out,size_t outsize,size_t *done)
 {
-  int free = Get_Inbuf_Free(id);
+  size_t free = Get_Inbuf_Free(id);
   int res;
 
   *done = 0;
@@ -3003,6 +3015,7 @@ int pdmp3_id3(pdmp3_handle *id,pdmp3_id3v1 **v1,pdmp3_id3v2 **v2)
 /*#############################################################################
  * mp3s must be NULL terminated
  */
+#if defined(OUTPUT_SOUND) || defined(OUTPUT_RAW)
 void pdmp3(char * const *mp3s){
   static const char *filename,*audio_name = "/dev/dsp";
   static FILE *fp =(FILE *) NULL;
@@ -3073,4 +3086,6 @@ void pdmp3(char * const *mp3s){
   }
   pdmp3_delete(id);
 }
+#endif /* defined(OUTPUT_SOUND) || defined(OUTPUT_RAW) */
+
 #endif /* !definend(PDMP3_HEADER_ONLY) */

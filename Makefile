@@ -14,7 +14,7 @@ CC = gcc
 #CFLAGS = -g -O4 -funroll-loops -Wall -ansi -DOUTPUT_SOUND
 #CFLAGS = -O4 -funroll-loops -Wall -ansi -DOUTPUT_RAW 
 #CFLAGS = -O4 -funroll-loops -Wall -ansi -DOUTPUT_DBG
-CFLAGS = -Os -ffunction-sections -fdata-sections \
+CFLAGS = -g -Os -ffunction-sections -fdata-sections \
 	-finline-small-functions -finline-functions-called-once \
 	-fno-unwind-tables -fno-asynchronous-unwind-tables \
 	-ffast-math -fassociative-math -fomit-frame-pointer -ffinite-math-only \
